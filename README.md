@@ -1,10 +1,15 @@
+<p align="right">
+  <a href="./README.md"><img alt="中文" src="https://img.shields.io/badge/%E8%AF%AD%E8%A8%80-%E4%B8%AD%E6%96%87-2563eb?style=for-the-badge"></a>
+  <a href="./README.en.md"><img alt="English" src="https://img.shields.io/badge/Language-English-d1d5db?style=for-the-badge"></a>
+</p>
+
 # PDF Tools MCP
 
-轻量级 PDF 工具 MCP 服务器，可供 Codex、Claude Code 以及其他支持 MCP 的 AI 编程助手调用。
+PDF Tools MCP 是一个轻量级本地 PDF 工具服务器。它通过 MCP 暴露常用 PDF 操作，适合被 Claude Code、Codex 以及其他支持 MCP 的 AI 编程助手调用。
 
-A lightweight PDF tools MCP server for Codex, Claude Code, and other MCP-compatible AI coding agents.
+它专注于最常见、最稳定的 PDF 页级操作，不做厚重的 GUI，也不绑定某一个 AI 客户端。
 
-## 功能 / Features
+## 功能
 
 - `pdf_inspect`: 查看页数、加密状态、元数据、页面尺寸和旋转角度
 - `pdf_merge`: 合并多个 PDF
@@ -17,24 +22,9 @@ A lightweight PDF tools MCP server for Codex, Claude Code, and other MCP-compati
 
 所有页码参数都使用 1-based 页码，也就是第 1 页传 `1`。
 
-All page arguments are 1-based, so page 1 is passed as `1`.
+## 安装
 
-## Codex 安装 / Codex Install
-
-```bash
-codex plugin marketplace add dabidabi/pdf-tools-mcp --ref main
-codex plugin add pdf-tools-mcp@pdf-tools-mcp-marketplace
-```
-
-安装后请新开一个 Codex 线程，让插件工具重新加载。
-
-After installation, start a new Codex thread so the plugin tools are loaded.
-
-## Claude Code 使用 / Claude Code Usage
-
-Claude Code 不使用 Codex marketplace 外壳，但可以直接连接这个仓库里的 stdio MCP server。
-
-Claude Code does not use the Codex marketplace wrapper, but it can connect directly to the stdio MCP server in this repository.
+### Claude Code
 
 ```bash
 git clone https://github.com/dabidabi/pdf-tools-mcp.git
@@ -44,16 +34,23 @@ claude mcp add --scope user pdf-tools-mcp -- python3 "$PWD/plugins/pdf-tools-mcp
 
 第一次运行时，启动脚本会在插件目录下创建本地 `.venv` 并安装 `pypdf`。
 
-On first run, the launcher creates a local `.venv` inside the plugin directory and installs `pypdf`.
+### Codex
 
-## 直接测试 / Direct Smoke Test
+```bash
+codex plugin marketplace add dabidabi/pdf-tools-mcp --ref main
+codex plugin add pdf-tools-mcp@pdf-tools-mcp-marketplace
+```
+
+安装后新开一个 Codex 线程，让工具重新加载。
+
+## 直接测试
 
 ```bash
 cd plugins/pdf-tools-mcp
 printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | python3 scripts/run_mcp.py
 ```
 
-## 项目结构 / Repository Layout
+## 项目结构
 
 ```text
 .agents/plugins/marketplace.json
