@@ -1,6 +1,7 @@
-<p align="right">
-  <a href="./README.md"><img alt="中文" src="https://img.shields.io/badge/%E8%AF%AD%E8%A8%80-%E4%B8%AD%E6%96%87-2563eb?style=for-the-badge"></a>
-  <a href="./README.en.md"><img alt="English" src="https://img.shields.io/badge/Language-English-d1d5db?style=for-the-badge"></a>
+<p align="left">
+  <a href="./README.md"><strong>中文</strong></a>
+  |
+  <a href="./README.en.md">English</a>
 </p>
 
 # PDF Tools MCP
@@ -20,26 +21,22 @@
 
 所有工具都会写入新的输出文件，并拒绝把 `output_path` 设置成输入文件路径。
 
-## 本地测试
+## 安装
 
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements.txt
-python -m unittest discover -s tests
-```
-
-## MCP 测试
-
-```bash
-printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' \
-  | python3 scripts/run_mcp.py
-```
-
-## Claude Code
+### Claude Code
 
 ```bash
 claude mcp add --scope user pdf-tools-mcp -- python3 "/absolute/path/to/plugins/pdf-tools-mcp/scripts/run_mcp.py"
 ```
 
-建议使用绝对路径，这样 Claude Code 可以从任意工作目录启动 MCP server。
+## 本地测试
+
+```bash
+python3 -m venv .venv && . .venv/bin/activate && python -m pip install -r requirements.txt && python -m unittest discover -s tests
+```
+
+## MCP 测试
+
+```bash
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' | python3 scripts/run_mcp.py
+```
