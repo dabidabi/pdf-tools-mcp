@@ -18,8 +18,8 @@ from pdf_tools import (
 )
 
 
-SERVER_NAME = "codex-pdf-tools"
-SERVER_VERSION = "0.1.0"
+SERVER_NAME = "pdf-tools-mcp"
+SERVER_VERSION = "0.2.0"
 
 TOOL_HANDLERS: Dict[str, Callable[..., Dict[str, Any]]] = {
     "pdf_inspect": inspect_pdf,
@@ -262,7 +262,7 @@ def handle_rpc(message: Any) -> Optional[Dict[str, Any]]:
                     "capabilities": {"tools": {"listChanged": False}},
                     "serverInfo": {
                         "name": SERVER_NAME,
-                        "title": "Codex PDF Tools",
+                        "title": "PDF Tools MCP",
                         "version": SERVER_VERSION,
                         "description": "Lightweight local PDF operations powered by pypdf.",
                     },

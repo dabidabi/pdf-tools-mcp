@@ -32,10 +32,10 @@ def has_pypdf(python: Path | str) -> bool:
 
 def ensure_venv() -> Path:
     if not VENV_PYTHON.exists():
-        print("codex-pdf-tools: creating local Python environment", file=sys.stderr)
+        print("pdf-tools-mcp: creating local Python environment", file=sys.stderr)
         venv.EnvBuilder(with_pip=True).create(str(VENV_DIR))
     if not has_pypdf(VENV_PYTHON):
-        print("codex-pdf-tools: installing pypdf", file=sys.stderr)
+        print("pdf-tools-mcp: installing pypdf", file=sys.stderr)
         subprocess.check_call(
             [
                 str(VENV_PYTHON),

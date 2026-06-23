@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "codex_pdf_tools": {
-      "title": "Codex PDF Tools",
+    "pdf_tools_mcp": {
+      "title": "PDF Tools MCP",
       "description": "Lightweight local PDF operations powered by pypdf.",
       "cwd": ".",
       "command": "python3",

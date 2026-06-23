@@ -1,14 +1,14 @@
 {
-  "name": "codex-pdf-tools-marketplace",
+  "name": "pdf-tools-mcp-marketplace",
   "interface": {
-    "displayName": "Codex PDF Tools Marketplace"
+    "displayName": "PDF Tools MCP Marketplace"
   },
   "plugins": [
     {
-      "name": "codex-pdf-tools",
+      "name": "pdf-tools-mcp",
       "source": {
         "source": "local",
-        "path": "./plugins/codex-pdf-tools"
+        "path": "./plugins/pdf-tools-mcp"
       },
       "policy": {
         "installation": "AVAILABLE",
