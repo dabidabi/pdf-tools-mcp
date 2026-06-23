@@ -1,0 +1,20 @@
+{
+  "name": "pdf-tools-mcp-marketplace",
+  "owner": {
+    "name": "dabidabi",
+    "email": "dabingwu576@gmail.com"
+  },
+  "metadata": {
+    "description": "PDF Tools MCP marketplace",
+    "version": "0.2.0"
+  },
+  "plugins": [
+    {
+      "name": "pdf-tools-mcp",
+      "source": "./plugins/pdf-tools-mcp",
+      "description": "Lightweight local PDF tools (inspect, merge, split, extract, rotate, encrypt) for MCP-compatible AI coding agents.",
+      "version": "0.2.0",
+      "category": "productivity"
+    }
+  ]
+}
