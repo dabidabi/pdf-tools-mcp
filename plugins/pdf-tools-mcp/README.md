@@ -28,7 +28,7 @@
 ### Claude Code
 
 ```bash
-claude mcp add --scope user pdf-tools-mcp -- python3 "/absolute/path/to/plugins/pdf-tools-mcp/scripts/run_mcp.py"
+claude mcp add --transport stdio --scope user pdf-tools-mcp -- python3 "/absolute/path/to/plugins/pdf-tools-mcp/scripts/run_mcp.py"
 ```
 
 ## 本地测试
@@ -75,7 +75,7 @@ All tools write new output files and reject an `output_path` that is the same as
 ### Claude Code
 
 ```bash
-claude mcp add --scope user pdf-tools-mcp -- python3 "/absolute/path/to/plugins/pdf-tools-mcp/scripts/run_mcp.py"
+claude mcp add --transport stdio --scope user pdf-tools-mcp -- python3 "/absolute/path/to/plugins/pdf-tools-mcp/scripts/run_mcp.py"
 ```
 
 ## Local Test
