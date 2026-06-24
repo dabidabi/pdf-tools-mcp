@@ -1,0 +1,13 @@
+name = "pdf-tools-web"
+compatibility_date = "2026-06-24"
+pages_build_output_dir = "dist"
+
+[vars]
+PDF_TOOLS_DAILY_LIMIT = "10"
+PDF_TOOLS_MODEL = "@cf/ibm-granite/granite-4.0-h-micro"
+PDF_TOOLS_FALLBACK_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
+
+[[kv_namespaces]]
+binding = "PDF_TOOLS_QUOTA"
+id = "REPLACE_WITH_PRODUCTION_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID"
