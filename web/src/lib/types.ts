@@ -59,10 +59,26 @@ export type ParsedCommand = {
   remaining?: number;
 };
 
+export type ChatAttachment =
+  | {
+      type: "pdf";
+      documentId: string;
+      name: string;
+      pageCount: number;
+    }
+  | {
+      type: "result";
+      documentId: string;
+      outputId: string;
+      name: string;
+      pageCount: number;
+    };
+
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant" | "system";
   text: string;
+  attachments?: ChatAttachment[];
 };
 
 export type ApiParseResponse =

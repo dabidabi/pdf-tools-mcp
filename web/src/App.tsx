@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, FilePlus2, FileText, Loader2, MessageSquareText, RotateCw, Sparkles, Trash2 } from "lucide-react";
+import { Download, FileText, Loader2, MessageSquareText, Plus, SendHorizontal, Sparkles } from "lucide-react";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { parseLocalCommand } from "./lib/commandParser";
 import { createDocumentFromBytes, loadPdfFile, runPdfOperation } from "./lib/pdfActions";
-import type { ApiParseResponse, ChatMessage, LocalPdfDocument, ParsedCommand, PdfOutput } from "./lib/types";
+import type { ApiParseResponse, ChatAttachment, ChatMessage, LocalPdfDocument, ParsedCommand, PdfOutput } from "./lib/types";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 export function App() {
   const [documents, setDocuments] = useState<LocalPdfDocument[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [activePage, setActivePage] = useState(1);
   const [outputs, setOutputs] = useState<PdfOutput[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [prompt, setPrompt] = useState("");
@@ -25,11 +24,7 @@ export function App() {
     [activeId, documents]
   );
 
-  useEffect(() => {
-    if (activeDocument && activePage > activeDocument.pageCount) {
-      setActivePage(1);
-    }
-  }, [activeDocument, activePage]);
+  const outputsById = useMemo(() => new Map(outputs.map((output) => [output.id, output])), [outputs]);
 
   async function handleFiles(files: FileList | File[]) {
     const pdfs = Array.from(files).filter((file) => /\.pdf$/i.test(file.name) || file.type === "application/pdf");
@@ -39,8 +34,8 @@ export function App() {
     try {
       const loaded = await Promise.all(pdfs.map(loadPdfFile));
       setDocuments((current) => [...current, ...loaded]);
-      setActiveId((current) => current ?? loaded[0]?.id ?? null);
-      addAssistant(`${loaded.length} 个 PDF 已载入。`);
+      setActiveId(loaded[0]?.id ?? activeDocument?.id ?? null);
+      addUser("上传 PDF", loaded.map(pdfAttachment));
     } catch (error) {
       addAssistant(errorMessage(error));
     } finally {
@@ -66,7 +61,6 @@ export function App() {
       const parsed = await parseCommand(text, documents, activeDocument);
       if (parsed.remaining !== undefined) setRemaining(parsed.remaining);
       const result = await runPdfOperation(parsed.operation, activeDocument, documents);
-      addAssistant(`${sourceLabel(parsed.source)} ${result.message}`);
 
       if (result.outputs.length > 0) {
         setOutputs((current) => [...result.outputs, ...current]);
@@ -75,6 +69,12 @@ export function App() {
         );
         setDocuments((current) => [...current, ...generated]);
         setActiveId(generated[0]?.id ?? activeDocument.id);
+        addAssistant(
+          `${sourceLabel(parsed.source)} ${result.message}`,
+          generated.map((document, index) => resultAttachment(document, result.outputs[index]))
+        );
+      } else {
+        addAssistant(`${sourceLabel(parsed.source)} ${result.message}`);
       }
     } catch (error) {
       addAssistant(errorMessage(error));
@@ -83,12 +83,22 @@ export function App() {
     }
   }
 
-  function addUser(text: string) {
-    setMessages((current) => [...current, { id: crypto.randomUUID(), role: "user", text }]);
+  function handlePaste(event: React.ClipboardEvent) {
+    const files = Array.from(event.clipboardData.files).filter(
+      (file) => /\.pdf$/i.test(file.name) || file.type === "application/pdf"
+    );
+    if (files.length === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    handleFiles(files);
   }
 
-  function addAssistant(text: string) {
-    setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", text }]);
+  function addUser(text: string, attachments?: ChatAttachment[]) {
+    setMessages((current) => [...current, { id: crypto.randomUUID(), role: "user", text, attachments }]);
+  }
+
+  function addAssistant(text: string, attachments?: ChatAttachment[]) {
+    setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", text, attachments }]);
   }
 
   return (
@@ -99,6 +109,7 @@ export function App() {
         event.preventDefault();
         handleFiles(event.dataTransfer.files);
       }}
+      onPaste={handlePaste}
     >
       <section className="workspace">
         <div className="preview-toolbar">
@@ -106,52 +117,17 @@ export function App() {
             <span>{activeDocument?.name ?? "未选择 PDF"}</span>
             {activeDocument ? <b>{activeDocument.pageCount} 页</b> : null}
           </div>
-          <div className="quick-actions">
-            <button
-              title="查看信息"
-              disabled={!activeDocument || isRunning}
-              onClick={() => setPrompt("查看这个 PDF 的信息")}
-            >
-              <FileText size={17} />
-            </button>
-            <button
-              title="旋转当前页"
-              disabled={!activeDocument || isRunning}
-              onClick={() => setPrompt(`旋转第 ${activePage} 页 90 度`)}
-            >
-              <RotateCw size={17} />
-            </button>
-            <button
-              title="删除当前页"
-              disabled={!activeDocument || isRunning}
-              onClick={() => setPrompt(`删除第 ${activePage} 页`)}
-            >
-              <Trash2 size={17} />
-            </button>
-          </div>
         </div>
 
         <div className="preview-surface">
           {activeDocument ? (
-            <PdfCanvas document={activeDocument} pageNumber={activePage} />
+            <PdfScrollView document={activeDocument} />
           ) : (
             <div className="empty-preview">
               <FileText size={64} />
               <span>PDF</span>
             </div>
           )}
-        </div>
-
-        <div className="page-strip" aria-label="Pages">
-          {activeDocument?.pages.map((page) => (
-            <button
-              key={page.page}
-              className={`page-chip ${page.page === activePage ? "is-active" : ""}`}
-              onClick={() => setActivePage(page.page)}
-            >
-              {page.page}
-            </button>
-          ))}
         </div>
       </section>
 
@@ -164,10 +140,6 @@ export function App() {
               <span>{remaining === null ? "AI 10/天" : `AI 剩余 ${remaining}`}</span>
             </div>
           </div>
-          <button className="upload-button" onClick={() => fileInputRef.current?.click()} disabled={isLoadingFiles}>
-            {isLoadingFiles ? <Loader2 className="spin" size={17} /> : <FilePlus2 size={17} />}
-            <span>上传 PDF</span>
-          </button>
           <input
             ref={fileInputRef}
             className="sr-only"
@@ -182,49 +154,20 @@ export function App() {
         </div>
 
         <div className="messages">
-          {documents.length > 0 ? (
-            <div className="message assistant context-message">
-              <div className="message-title">PDF</div>
-              <div className="document-list">
-                {documents.map((document) => (
-                  <button
-                    key={document.id}
-                    className={`document-item ${document.id === activeDocument?.id ? "is-active" : ""}`}
-                    onClick={() => {
-                      setActiveId(document.id);
-                      setActivePage(1);
-                    }}
-                  >
-                    <FileText size={16} />
-                    <span>{document.name}</span>
-                    <b>{document.pageCount}</b>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {outputs.length > 0 ? (
-            <div className="message assistant context-message">
-              <div className="message-title">结果</div>
-              <div className="output-list">
-                {outputs.map((output) => (
-                  <DownloadOutput key={output.id} output={output} />
-                ))}
-              </div>
-            </div>
-          ) : null}
-
           {messages.length === 0 && documents.length === 0 ? (
             <div className="empty-chat">
               <Sparkles size={28} />
-              <span>等待 PDF</span>
+              <span>PDF Tools MCP</span>
             </div>
           ) : (
             messages.map((message) => (
-              <div key={message.id} className={`message ${message.role}`}>
-                {message.text}
-              </div>
+              <ChatBubble
+                key={message.id}
+                activeDocumentId={activeDocument?.id ?? null}
+                message={message}
+                outputsById={outputsById}
+                onPreview={(documentId) => setActiveId(documentId)}
+              />
             ))
           )}
         </div>
@@ -237,12 +180,13 @@ export function App() {
             disabled={isLoadingFiles}
             title="上传 PDF"
           >
-            {isLoadingFiles ? <Loader2 className="spin" size={18} /> : <FilePlus2 size={18} />}
+            {isLoadingFiles ? <Loader2 className="spin" size={18} /> : <Plus size={20} />}
           </button>
           <textarea
             value={prompt}
-            placeholder="删除第 2 页，提取 1-3 页，合并全部..."
+            placeholder="发送 PDF 命令"
             onChange={(event) => setPrompt(event.target.value)}
+            onPaste={handlePaste}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
@@ -250,9 +194,8 @@ export function App() {
               }
             }}
           />
-          <button className="send-button" type="submit" disabled={isRunning || !prompt.trim()}>
-            {isRunning ? <Loader2 className="spin" size={18} /> : <Sparkles size={18} />}
-            <span>运行</span>
+          <button className="send-button" title="发送" type="submit" disabled={isRunning || !prompt.trim()}>
+            {isRunning ? <Loader2 className="spin" size={18} /> : <SendHorizontal size={18} />}
           </button>
         </form>
       </aside>
@@ -260,7 +203,20 @@ export function App() {
   );
 }
 
-function PdfCanvas({ document, pageNumber }: { document: LocalPdfDocument; pageNumber: number }) {
+function PdfScrollView({ document }: { document: LocalPdfDocument }) {
+  return (
+    <div className="pdf-scroll">
+      {document.pages.map((page) => (
+        <div className="pdf-page" key={page.page}>
+          <div className="pdf-page-label">{page.page}</div>
+          <PdfPageCanvas document={document} pageNumber={page.page} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PdfPageCanvas({ document, pageNumber }: { document: LocalPdfDocument; pageNumber: number }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -277,8 +233,7 @@ function PdfCanvas({ document, pageNumber }: { document: LocalPdfDocument; pageN
         const page = await pdf.getPage(pageNumber);
         const baseViewport = page.getViewport({ scale: 1 });
         const availableWidth = Math.max(canvas.parentElement?.clientWidth ?? 720, 320) - 48;
-        const availableHeight = Math.max(canvas.parentElement?.clientHeight ?? 720, 320) - 48;
-        const scale = Math.min(availableWidth / baseViewport.width, availableHeight / baseViewport.height, 1.8);
+        const scale = Math.min(availableWidth / baseViewport.width, 1.7);
         const viewport = page.getViewport({ scale });
         const context = canvas.getContext("2d");
         if (!context || cancelled) return;
@@ -309,7 +264,61 @@ function PdfCanvas({ document, pageNumber }: { document: LocalPdfDocument; pageN
   );
 }
 
-function DownloadOutput({ output }: { output: PdfOutput }) {
+function ChatBubble({
+  message,
+  activeDocumentId,
+  outputsById,
+  onPreview
+}: {
+  message: ChatMessage;
+  activeDocumentId: string | null;
+  outputsById: Map<string, PdfOutput>;
+  onPreview: (documentId: string) => void;
+}) {
+  return (
+    <div className={`message ${message.role}`}>
+      <div>{message.text}</div>
+      {message.attachments && message.attachments.length > 0 ? (
+        <div className="attachment-list">
+          {message.attachments.map((attachment) => (
+            <AttachmentCard
+              key={`${attachment.type}:${attachment.documentId}:${"outputId" in attachment ? attachment.outputId : ""}`}
+              activeDocumentId={activeDocumentId}
+              attachment={attachment}
+              output={"outputId" in attachment ? outputsById.get(attachment.outputId) : undefined}
+              onPreview={onPreview}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AttachmentCard({
+  attachment,
+  activeDocumentId,
+  output,
+  onPreview
+}: {
+  attachment: ChatAttachment;
+  activeDocumentId: string | null;
+  output?: PdfOutput;
+  onPreview: (documentId: string) => void;
+}) {
+  return (
+    <div className={`attachment-card ${attachment.documentId === activeDocumentId ? "is-active" : ""}`}>
+      <button className="attachment-main" onClick={() => onPreview(attachment.documentId)}>
+        <FileText size={17} />
+        <span>{attachment.name}</span>
+        <b>{attachment.pageCount}</b>
+      </button>
+      {attachment.type === "result" && output ? <DownloadAttachment output={output} /> : null}
+    </div>
+  );
+}
+
+function DownloadAttachment({ output }: { output: PdfOutput }) {
   const url = useMemo(() => URL.createObjectURL(output.blob), [output.blob]);
 
   useEffect(() => {
@@ -317,11 +326,29 @@ function DownloadOutput({ output }: { output: PdfOutput }) {
   }, [url]);
 
   return (
-    <a className="output-item" href={url} download={output.name}>
+    <a className="attachment-download" href={url} download={output.name} title="下载">
       <Download size={15} />
-      <span>{output.name}</span>
     </a>
   );
+}
+
+function pdfAttachment(document: LocalPdfDocument): ChatAttachment {
+  return {
+    type: "pdf",
+    documentId: document.id,
+    name: document.name,
+    pageCount: document.pageCount
+  };
+}
+
+function resultAttachment(document: LocalPdfDocument, output: PdfOutput): ChatAttachment {
+  return {
+    type: "result",
+    documentId: document.id,
+    outputId: output.id,
+    name: output.name,
+    pageCount: document.pageCount
+  };
 }
 
 async function parseCommand(

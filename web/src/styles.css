@@ -32,7 +32,7 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 400px;
+  grid-template-columns: minmax(0, 1fr) 410px;
   min-height: 100vh;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(237, 242, 241, 0.92)),
@@ -83,9 +83,7 @@ button {
   font-size: 13px;
 }
 
-.primary-button,
-.send-button,
-.upload-button {
+.primary-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -97,17 +95,14 @@ button {
   cursor: pointer;
 }
 
-.primary-button:hover,
-.send-button:hover,
-.upload-button:hover {
+.primary-button:hover {
   background: #0b5f59;
 }
 
 .primary-button:disabled,
 .send-button:disabled,
-.upload-button:disabled,
 .composer-upload:disabled,
-.quick-actions button:disabled {
+.attachment-main:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -124,64 +119,9 @@ button {
   font-size: 15px;
 }
 
-.document-list,
-.output-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.document-item,
-.output-item {
-  display: grid;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  min-height: 38px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  text-align: left;
-  text-decoration: none;
-  color: #24333d;
-  background: #ffffff;
-  border: 1px solid #dfe7e6;
-}
-
-.context-message .document-item,
-.context-message .output-item {
-  background: #f8fbfa;
-}
-
-.document-item {
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  cursor: pointer;
-}
-
-.document-item.is-active {
-  border-color: #0f766e;
-  background: #e8f5f2;
-}
-
-.document-item span,
-.output-item span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.document-item b {
-  color: #d4562a;
-  font-size: 12px;
-}
-
-.output-item {
-  grid-template-columns: 17px minmax(0, 1fr);
-}
-
 .workspace {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 100vh;
 }
@@ -219,30 +159,37 @@ button {
   font-size: 13px;
 }
 
-.quick-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.quick-actions button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  color: #0f766e;
-  background: #ffffff;
-  border: 1px solid #dfe7e6;
-  cursor: pointer;
-}
-
 .preview-surface {
-  display: grid;
-  place-items: center;
+  display: block;
   min-height: 0;
   padding: 24px;
   overflow: auto;
+}
+
+.pdf-scroll {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  width: 100%;
+  min-height: 100%;
+  padding-bottom: 40px;
+}
+
+.pdf-page {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  width: min(920px, 100%);
+}
+
+.pdf-page-label {
+  align-self: start;
+  justify-self: start;
+  margin: 0 0 8px 4px;
+  color: #687782;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .canvas-wrap {
@@ -250,8 +197,7 @@ button {
   display: grid;
   place-items: center;
   width: 100%;
-  height: 100%;
-  min-height: 320px;
+  min-height: 0;
 }
 
 .canvas-wrap canvas {
@@ -285,33 +231,6 @@ button {
   color: #0f766e;
 }
 
-.page-strip {
-  display: flex;
-  gap: 8px;
-  min-height: 66px;
-  padding: 14px 20px;
-  overflow-x: auto;
-  border-top: 1px solid #d7dfdf;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.page-chip {
-  flex: 0 0 auto;
-  min-width: 38px;
-  height: 38px;
-  border-radius: 8px;
-  color: #34515a;
-  background: #ffffff;
-  border: 1px solid #dfe7e6;
-  cursor: pointer;
-}
-
-.page-chip.is-active {
-  color: #ffffff;
-  background: #d4562a;
-  border-color: #d4562a;
-}
-
 .chat-header > div {
   display: flex;
   align-items: center;
@@ -320,12 +239,6 @@ button {
 
 .chat-header svg {
   color: #0f766e;
-}
-
-.upload-button {
-  flex: 0 0 auto;
-  min-height: 38px;
-  padding: 0 12px;
 }
 
 .messages {
@@ -345,17 +258,6 @@ button {
   word-break: break-word;
 }
 
-.message-title {
-  margin-bottom: 10px;
-  color: #14213d;
-  font-weight: 700;
-}
-
-.message.context-message {
-  width: 100%;
-  max-width: 100%;
-}
-
 .message.user {
   align-self: flex-end;
   color: #ffffff;
@@ -370,28 +272,95 @@ button {
   border: 1px solid #dfe7e6;
 }
 
+.attachment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.attachment-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dfe7e6;
+  border-radius: 8px;
+  background: #f8fbfa;
+}
+
+.attachment-card.is-active {
+  border-color: #0f766e;
+  background: #e8f5f2;
+}
+
+.attachment-main {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 42px;
+  padding: 8px 10px;
+  color: #24333d;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.attachment-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-main b {
+  color: #d4562a;
+  font-size: 12px;
+}
+
+.attachment-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-right: 2px;
+  border-radius: 8px;
+  color: #0f766e;
+  text-decoration: none;
+}
+
+.attachment-download:hover {
+  background: #ffffff;
+}
+
 .composer {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  align-items: end;
   gap: 10px;
+  padding: 10px;
+  border: 1px solid #cfd9d8;
+  border-radius: 8px;
+  background: #ffffff;
 }
 
 .composer textarea {
-  grid-column: 1 / -1;
   width: 100%;
-  min-height: 108px;
-  resize: vertical;
-  padding: 12px;
-  border: 1px solid #cfd9d8;
-  border-radius: 8px;
+  min-height: 42px;
+  max-height: 160px;
+  resize: none;
+  padding: 9px 0;
+  border: 0;
   color: #1f2933;
-  background: #ffffff;
+  background: transparent;
   outline: none;
 }
 
 .composer textarea:focus {
-  border-color: #0f766e;
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+  box-shadow: none;
 }
 
 .composer-upload {
@@ -399,16 +368,28 @@ button {
   align-items: center;
   justify-content: center;
   width: 42px;
-  min-height: 42px;
+  height: 42px;
   border-radius: 8px;
   color: #0f766e;
-  background: #ffffff;
+  background: #f8fbfa;
   border: 1px solid #dfe7e6;
   cursor: pointer;
 }
 
 .send-button {
-  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #0f766e;
+  cursor: pointer;
+}
+
+.send-button:hover {
+  background: #0b5f59;
 }
 
 .spin {
