@@ -32,14 +32,13 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 400px;
   min-height: 100vh;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(237, 242, 241, 0.92)),
     #edf2f1;
 }
 
-.sidebar,
 .chat-panel {
   display: flex;
   flex-direction: column;
@@ -48,10 +47,6 @@ button {
   padding: 20px;
   background: rgba(250, 252, 252, 0.92);
   border-color: #d7dfdf;
-}
-
-.sidebar {
-  border-right: 1px solid #d7dfdf;
 }
 
 .chat-panel {
@@ -70,7 +65,6 @@ button {
 }
 
 .brand h1,
-.chat-header h2,
 .panel-section h2 {
   margin: 0;
   color: #14213d;
@@ -90,7 +84,8 @@ button {
 }
 
 .primary-button,
-.send-button {
+.send-button,
+.upload-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -103,27 +98,18 @@ button {
 }
 
 .primary-button:hover,
-.send-button:hover {
+.send-button:hover,
+.upload-button:hover {
   background: #0b5f59;
 }
 
 .primary-button:disabled,
 .send-button:disabled,
+.upload-button:disabled,
+.composer-upload:disabled,
 .quick-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
-}
-
-.drop-zone {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 88px;
-  border: 1px dashed #8fa3a1;
-  border-radius: 8px;
-  color: #34515a;
-  background: #f8fbfa;
 }
 
 .panel-section {
@@ -134,7 +120,7 @@ button {
 }
 
 .panel-section h2,
-.chat-header h2 {
+.message-title {
   font-size: 15px;
 }
 
@@ -160,6 +146,11 @@ button {
   color: #24333d;
   background: #ffffff;
   border: 1px solid #dfe7e6;
+}
+
+.context-message .document-item,
+.context-message .output-item {
+  background: #f8fbfa;
 }
 
 .document-item {
@@ -331,6 +322,12 @@ button {
   color: #0f766e;
 }
 
+.upload-button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 12px;
+}
+
 .messages {
   display: flex;
   flex: 1;
@@ -348,6 +345,17 @@ button {
   word-break: break-word;
 }
 
+.message-title {
+  margin-bottom: 10px;
+  color: #14213d;
+  font-weight: 700;
+}
+
+.message.context-message {
+  width: 100%;
+  max-width: 100%;
+}
+
 .message.user {
   align-self: flex-end;
   color: #ffffff;
@@ -363,12 +371,13 @@ button {
 }
 
 .composer {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
   gap: 10px;
 }
 
 .composer textarea {
+  grid-column: 1 / -1;
   width: 100%;
   min-height: 108px;
   resize: vertical;
@@ -383,6 +392,23 @@ button {
 .composer textarea:focus {
   border-color: #0f766e;
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+}
+
+.composer-upload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  min-height: 42px;
+  border-radius: 8px;
+  color: #0f766e;
+  background: #ffffff;
+  border: 1px solid #dfe7e6;
+  cursor: pointer;
+}
+
+.send-button {
+  min-width: 0;
 }
 
 .spin {
@@ -403,7 +429,7 @@ button {
 
 @media (max-width: 1100px) {
   .app-shell {
-    grid-template-columns: 240px minmax(0, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .chat-panel {
@@ -419,15 +445,9 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .sidebar,
   .workspace,
   .chat-panel {
     min-height: auto;
-  }
-
-  .sidebar {
-    border-right: 0;
-    border-bottom: 1px solid #d7dfdf;
   }
 
   .preview-surface {

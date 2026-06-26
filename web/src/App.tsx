@@ -63,7 +63,7 @@ export function App() {
 
     setIsRunning(true);
     try {
-      const parsed = await parseCommand(text, documents);
+      const parsed = await parseCommand(text, documents, activeDocument);
       if (parsed.remaining !== undefined) setRemaining(parsed.remaining);
       const result = await runPdfOperation(parsed.operation, activeDocument, documents);
       addAssistant(`${sourceLabel(parsed.source)} ${result.message}`);
@@ -92,77 +92,14 @@ export function App() {
   }
 
   return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <FileText size={24} />
-          <div>
-            <h1>PDF Tools MCP</h1>
-            <span>Web</span>
-          </div>
-        </div>
-
-        <button className="primary-button" onClick={() => fileInputRef.current?.click()} disabled={isLoadingFiles}>
-          {isLoadingFiles ? <Loader2 className="spin" size={18} /> : <FilePlus2 size={18} />}
-          <span>添加 PDF</span>
-        </button>
-        <input
-          ref={fileInputRef}
-          className="sr-only"
-          type="file"
-          accept="application/pdf"
-          multiple
-          onChange={(event) => event.target.files && handleFiles(event.target.files)}
-        />
-
-        <div
-          className="drop-zone"
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            handleFiles(event.dataTransfer.files);
-          }}
-        >
-          <FilePlus2 size={22} />
-          <span>拖入 PDF</span>
-        </div>
-
-        <section className="panel-section">
-          <h2>文件</h2>
-          <div className="document-list">
-            {documents.length === 0 ? (
-              <div className="empty-line">暂无文件</div>
-            ) : (
-              documents.map((document) => (
-                <button
-                  key={document.id}
-                  className={`document-item ${document.id === activeDocument?.id ? "is-active" : ""}`}
-                  onClick={() => {
-                    setActiveId(document.id);
-                    setActivePage(1);
-                  }}
-                >
-                  <FileText size={16} />
-                  <span>{document.name}</span>
-                  <b>{document.pageCount}</b>
-                </button>
-              ))
-            )}
-          </div>
-        </section>
-
-        <section className="panel-section">
-          <h2>结果</h2>
-          <div className="output-list">
-            {outputs.length === 0 ? (
-              <div className="empty-line">暂无结果</div>
-            ) : (
-              outputs.map((output) => <DownloadOutput key={output.id} output={output} />)
-            )}
-          </div>
-        </section>
-      </aside>
-
+    <main
+      className="app-shell"
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        handleFiles(event.dataTransfer.files);
+      }}
+    >
       <section className="workspace">
         <div className="preview-toolbar">
           <div>
@@ -220,18 +157,68 @@ export function App() {
 
       <aside className="chat-panel">
         <div className="chat-header">
-          <div>
-            <MessageSquareText size={20} />
-            <h2>对话</h2>
+          <div className="brand">
+            <MessageSquareText size={22} />
+            <div>
+              <h1>PDF Tools MCP</h1>
+              <span>{remaining === null ? "AI 10/天" : `AI 剩余 ${remaining}`}</span>
+            </div>
           </div>
-          <span>{remaining === null ? "AI 10/天" : `AI 剩余 ${remaining}`}</span>
+          <button className="upload-button" onClick={() => fileInputRef.current?.click()} disabled={isLoadingFiles}>
+            {isLoadingFiles ? <Loader2 className="spin" size={17} /> : <FilePlus2 size={17} />}
+            <span>上传 PDF</span>
+          </button>
+          <input
+            ref={fileInputRef}
+            className="sr-only"
+            type="file"
+            accept="application/pdf"
+            multiple
+            onChange={(event) => {
+              if (event.target.files) handleFiles(event.target.files);
+              event.currentTarget.value = "";
+            }}
+          />
         </div>
 
         <div className="messages">
-          {messages.length === 0 ? (
+          {documents.length > 0 ? (
+            <div className="message assistant context-message">
+              <div className="message-title">PDF</div>
+              <div className="document-list">
+                {documents.map((document) => (
+                  <button
+                    key={document.id}
+                    className={`document-item ${document.id === activeDocument?.id ? "is-active" : ""}`}
+                    onClick={() => {
+                      setActiveId(document.id);
+                      setActivePage(1);
+                    }}
+                  >
+                    <FileText size={16} />
+                    <span>{document.name}</span>
+                    <b>{document.pageCount}</b>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {outputs.length > 0 ? (
+            <div className="message assistant context-message">
+              <div className="message-title">结果</div>
+              <div className="output-list">
+                {outputs.map((output) => (
+                  <DownloadOutput key={output.id} output={output} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {messages.length === 0 && documents.length === 0 ? (
             <div className="empty-chat">
               <Sparkles size={28} />
-              <span>等待指令</span>
+              <span>等待 PDF</span>
             </div>
           ) : (
             messages.map((message) => (
@@ -243,6 +230,15 @@ export function App() {
         </div>
 
         <form className="composer" onSubmit={handleSubmit}>
+          <button
+            className="composer-upload"
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoadingFiles}
+            title="上传 PDF"
+          >
+            {isLoadingFiles ? <Loader2 className="spin" size={18} /> : <FilePlus2 size={18} />}
+          </button>
           <textarea
             value={prompt}
             placeholder="删除第 2 页，提取 1-3 页，合并全部..."
@@ -328,8 +324,16 @@ function DownloadOutput({ output }: { output: PdfOutput }) {
   );
 }
 
-async function parseCommand(message: string, documents: LocalPdfDocument[]): Promise<ParsedCommand> {
-  const local = parseLocalCommand(message, documents);
+async function parseCommand(
+  message: string,
+  documents: LocalPdfDocument[],
+  activeDocument: LocalPdfDocument
+): Promise<ParsedCommand> {
+  const orderedDocuments = [
+    activeDocument,
+    ...documents.filter((document) => document.id !== activeDocument.id)
+  ];
+  const local = parseLocalCommand(message, orderedDocuments);
   if (local && local.tool !== "unsupported") {
     return { operation: local, source: "local" };
   }
@@ -339,7 +343,7 @@ async function parseCommand(message: string, documents: LocalPdfDocument[]): Pro
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       message,
-      documents: documents.map((document) => ({
+      documents: orderedDocuments.map((document) => ({
         id: document.id,
         name: document.name,
         pageCount: document.pageCount,
