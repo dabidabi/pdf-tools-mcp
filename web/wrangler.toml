@@ -7,7 +7,10 @@ PDF_TOOLS_DAILY_LIMIT = "10"
 PDF_TOOLS_MODEL = "@cf/ibm-granite/granite-4.0-h-micro"
 PDF_TOOLS_FALLBACK_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
 
+[ai]
+binding = "AI"
+
 [[kv_namespaces]]
 binding = "PDF_TOOLS_QUOTA"
-id = "REPLACE_WITH_PRODUCTION_KV_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID"
+id = "0643a508af6b490a8e22e7d26cc4da76"
+preview_id = "ac32cc4dd8f74878b520d06cfb3cc5f9"

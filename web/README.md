@@ -2,6 +2,8 @@
 
 Cloudflare Pages demo for PDF Tools MCP.
 
+Live demo: https://pdf-tools-web-9ik.pages.dev
+
 ## Stack
 
 - Vite + React + TypeScript
@@ -45,7 +47,14 @@ Add these bindings and variables:
 | `PDF_TOOLS_MODEL` | Environment variable | `@cf/ibm-granite/granite-4.0-h-micro` |
 | `PDF_TOOLS_FALLBACK_MODEL` | Environment variable | `@cf/qwen/qwen3-30b-a3b-fp8` |
 
-The only required manual steps are connecting the GitHub repo to Cloudflare Pages and adding the `AI` and `PDF_TOOLS_QUOTA` bindings.
+Current production project:
+
+- Pages project: `pdf-tools-web`
+- URL: `https://pdf-tools-web-9ik.pages.dev`
+- KV production namespace: `pdf-tools-quota`
+- KV preview namespace: `pdf-tools-quota-preview`
+
+The current `wrangler.toml` already includes the `AI` binding and the KV namespace IDs.
 
 ## AI Quota
 

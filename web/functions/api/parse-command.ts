@@ -27,6 +27,7 @@ type IncomingBody = {
 const DEFAULT_LIMIT = 10;
 const DEFAULT_MODEL = "@cf/ibm-granite/granite-4.0-h-micro";
 const DEFAULT_FALLBACK_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
+const MODEL_TIMEOUT_MS = 12_000;
 const COOKIE_NAME = "pdf_tools_visitor";
 const CACHE_TTL_SECONDS = 60 * 60 * 24 * 14;
 
@@ -156,30 +157,43 @@ async function parseWithAi(
   let lastError: unknown = null;
   for (const model of models) {
     try {
-      const raw = await ai.run(model, {
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt()
-          },
-          {
-            role: "user",
-            content: JSON.stringify({
-              message,
-              documents: documentFacts(documents),
-              currentDocument: documentFacts(documents)[0]
-            })
-          }
-        ],
-        temperature: 0,
-        max_tokens: 500
-      });
+      const raw = await withTimeout(
+        ai.run(model, {
+          messages: [
+            {
+              role: "system",
+              content: systemPrompt()
+            },
+            {
+              role: "user",
+              content: JSON.stringify({
+                message,
+                documents: documentFacts(documents),
+                currentDocument: documentFacts(documents)[0]
+              })
+            }
+          ],
+          temperature: 0,
+          max_tokens: 500
+        }),
+        MODEL_TIMEOUT_MS,
+        `${model} timed out`
+      );
       return normalizeOperation(extractJson(raw), documents);
     } catch (error) {
       lastError = error;
     }
   }
   throw lastError instanceof Error ? lastError : new Error("模型没有返回可用 JSON。");
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(message)), timeoutMs);
+    })
+  ]);
 }
 
 function systemPrompt(): string {
