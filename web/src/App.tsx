@@ -1,21 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowUp,
   Download,
   FileText,
-  Files,
+  FileUp,
   Loader2,
-  MessageSquareText,
   Plus,
-  SendHorizontal,
   Sparkles
 } from "lucide-react";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
+import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { parseLocalCommand } from "./lib/commandParser";
 import { createDocumentFromBytes, loadPdfFile, runPdfOperation } from "./lib/pdfActions";
 import type { ApiParseResponse, ChatAttachment, ChatMessage, LocalPdfDocument, ParsedCommand, PdfOutput } from "./lib/types";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+
+const EXAMPLES = [
+  "Inspect this PDF",
+  "Extract pages 1-3",
+  "Delete page 2",
+  "Rotate page 1 by 90",
+  "Merge all PDFs"
+];
 
 export function App() {
   const [documents, setDocuments] = useState<LocalPdfDocument[]>([]);
@@ -26,7 +34,11 @@ export function App() {
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
+  const [limit, setLimit] = useState(10);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
 
   const activeDocument = useMemo(
     () => documents.find((document) => document.id === activeId) ?? documents[0] ?? null,
@@ -34,6 +46,11 @@ export function App() {
   );
 
   const outputsById = useMemo(() => new Map(outputs.map((output) => [output.id, output])), [outputs]);
+
+  useEffect(() => {
+    const node = messagesRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [messages]);
 
   async function handleFiles(files: FileList | File[]) {
     const pdfs = Array.from(files).filter((file) => /\.pdf$/i.test(file.name) || file.type === "application/pdf");
@@ -44,9 +61,9 @@ export function App() {
       const loaded = await Promise.all(pdfs.map(loadPdfFile));
       setDocuments((current) => [...current, ...loaded]);
       setActiveId(loaded[0]?.id ?? activeDocument?.id ?? null);
-      addUser("PDF", loaded.map(pdfAttachment));
+      addUser(loaded.length > 1 ? `Added ${loaded.length} PDFs` : "Added a PDF", loaded.map(pdfAttachment));
     } catch (error) {
-      addAssistant(errorMessage(error));
+      addAssistant(errorMessage(error), undefined, "error");
     } finally {
       setIsLoadingFiles(false);
     }
@@ -61,7 +78,7 @@ export function App() {
     setPrompt("");
 
     if (!activeDocument) {
-      addAssistant("Add a PDF first.");
+      addAssistant("Add a PDF first, then tell me what to do with it.");
       return;
     }
 
@@ -69,6 +86,7 @@ export function App() {
     try {
       const parsed = await parseCommand(text, documents, activeDocument);
       if (parsed.remaining !== undefined) setRemaining(parsed.remaining);
+      if (parsed.limit !== undefined) setLimit(parsed.limit);
       const result = await runPdfOperation(parsed.operation, activeDocument, documents);
 
       if (result.outputs.length > 0) {
@@ -86,7 +104,7 @@ export function App() {
         addAssistant(`${sourceLabel(parsed.source)} · ${result.message}`);
       }
     } catch (error) {
-      addAssistant(errorMessage(error));
+      addAssistant(errorMessage(error), undefined, "error");
     } finally {
       setIsRunning(false);
     }
@@ -102,41 +120,83 @@ export function App() {
     handleFiles(files);
   }
 
+  function pickExample(example: string) {
+    setPrompt(example);
+    textareaRef.current?.focus();
+  }
+
   function addUser(text: string, attachments?: ChatAttachment[]) {
     setMessages((current) => [...current, { id: crypto.randomUUID(), role: "user", text, attachments }]);
   }
 
-  function addAssistant(text: string, attachments?: ChatAttachment[]) {
-    setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", text, attachments }]);
+  function addAssistant(text: string, attachments?: ChatAttachment[], variant?: "error") {
+    setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", text, attachments, variant }]);
   }
 
   return (
     <main
-      className="app-shell"
-      onDragOver={(event) => event.preventDefault()}
+      className={`app-shell ${isDragging ? "is-dragging" : ""}`}
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!isDragging) setIsDragging(true);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget === event.target) setIsDragging(false);
+      }}
       onDrop={(event) => {
         event.preventDefault();
+        setIsDragging(false);
         handleFiles(event.dataTransfer.files);
       }}
       onPaste={handlePaste}
     >
       <section className="workspace">
         <div className="preview-toolbar">
-          <div className="document-chip" title={activeDocument?.name ?? "PDF"}>
-            <FileText size={18} />
-            <span>{activeDocument?.name ?? "PDF"}</span>
+          <div className="document-chip" title={activeDocument?.name ?? "No document"}>
+            <FileText size={17} />
+            <span>{activeDocument?.name ?? "No document yet"}</span>
             {activeDocument ? <b aria-label={`${activeDocument.pageCount} pages`}>{activeDocument.pageCount}</b> : null}
           </div>
+          {documents.length > 1 ? (
+            <div className="doc-switcher" role="tablist" aria-label="Open documents">
+              {documents.map((document) => (
+                <button
+                  key={document.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={document.id === activeDocument?.id}
+                  className={`doc-tab ${document.id === activeDocument?.id ? "is-active" : ""}`}
+                  title={document.name}
+                  onClick={() => setActiveId(document.id)}
+                >
+                  <FileText size={13} />
+                  <span>{document.name}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="preview-surface">
           {activeDocument ? (
             <PdfScrollView document={activeDocument} />
           ) : (
-            <div className="empty-preview">
-              <FileText size={64} />
-              <Plus size={24} />
-            </div>
+            <button
+              type="button"
+              className="empty-preview"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <div className="empty-preview-art" aria-hidden>
+                <FileText size={54} strokeWidth={1.25} />
+                <span className="empty-preview-badge">
+                  <Plus size={16} />
+                </span>
+              </div>
+              <div className="empty-preview-copy">
+                <strong>Drop a PDF to begin</strong>
+                <span>Drag &amp; drop, paste, or click to browse. Files never leave your browser.</span>
+              </div>
+            </button>
           )}
         </div>
       </section>
@@ -144,11 +204,14 @@ export function App() {
       <aside className="chat-panel">
         <div className="chat-header">
           <div className="brand">
-            <MessageSquareText size={22} />
-            <div className="quota-pill" title="AI quota">
-              <Sparkles size={15} />
-              <span>{remaining ?? 10}</span>
-            </div>
+            <span className="brand-mark" aria-hidden>
+              <FileText size={16} />
+            </span>
+            <span className="brand-name">PDF Studio</span>
+          </div>
+          <div className="quota-pill" title={`${remaining ?? limit} of ${limit} AI commands left today`}>
+            <Sparkles size={14} />
+            <span>{remaining ?? limit}</span>
           </div>
           <input
             ref={fileInputRef}
@@ -163,11 +226,18 @@ export function App() {
           />
         </div>
 
-        <div className="messages">
-          {messages.length === 0 && documents.length === 0 ? (
+        <div className="messages" ref={messagesRef}>
+          {messages.length === 0 ? (
             <div className="empty-chat">
-              <Files size={30} />
-              <MessageSquareText size={28} />
+              <h1>Edit PDFs by chatting.</h1>
+              <p>Merge, split, extract, delete, rotate, or reorder pages — just say what you need.</p>
+              <div className="suggestions">
+                {EXAMPLES.map((example) => (
+                  <button key={example} type="button" className="suggestion" onClick={() => pickExample(example)}>
+                    {example}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             messages.map((message) => (
@@ -180,6 +250,12 @@ export function App() {
               />
             ))
           )}
+          {isRunning ? (
+            <div className="message assistant is-thinking">
+              <Loader2 className="spin" size={15} />
+              <span>Working…</span>
+            </div>
+          ) : null}
         </div>
 
         <form className="composer" onSubmit={handleSubmit}>
@@ -191,12 +267,14 @@ export function App() {
             title="Add PDF"
             aria-label="Add PDF"
           >
-            {isLoadingFiles ? <Loader2 className="spin" size={18} /> : <Plus size={20} />}
+            {isLoadingFiles ? <Loader2 className="spin" size={18} /> : <FileUp size={18} />}
           </button>
           <textarea
+            ref={textareaRef}
             value={prompt}
-            placeholder="Ask PDF..."
+            placeholder={activeDocument ? "Ask anything about this PDF…" : "Add a PDF, then ask…"}
             aria-label="PDF command"
+            rows={1}
             onChange={(event) => setPrompt(event.target.value)}
             onPaste={handlePaste}
             onKeyDown={(event) => {
@@ -207,7 +285,7 @@ export function App() {
             }}
           />
           <button className="send-button" title="Send" aria-label="Send" type="submit" disabled={isRunning || !prompt.trim()}>
-            {isRunning ? <Loader2 className="spin" size={18} /> : <SendHorizontal size={18} />}
+            {isRunning ? <Loader2 className="spin" size={18} /> : <ArrowUp size={18} />}
           </button>
         </form>
       </aside>
@@ -215,58 +293,114 @@ export function App() {
   );
 }
 
+function usePdfjsDocument(bytes: Uint8Array) {
+  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let loaded: PDFDocumentProxy | null = null;
+    setPdf(null);
+    setError(null);
+
+    const task = getDocument({ data: new Uint8Array(bytes) });
+    task.promise
+      .then((document) => {
+        loaded = document;
+        if (cancelled) {
+          document.destroy();
+          return;
+        }
+        setPdf(document);
+      })
+      .catch((loadError) => {
+        if (!cancelled) setError(errorMessage(loadError));
+      });
+
+    return () => {
+      cancelled = true;
+      if (loaded) loaded.destroy();
+      else task.destroy();
+    };
+  }, [bytes]);
+
+  return { pdf, error };
+}
+
 function PdfScrollView({ document }: { document: LocalPdfDocument }) {
+  const { pdf, error } = usePdfjsDocument(document.bytes);
+
+  if (error) {
+    return <div className="preview-status canvas-error">{error}</div>;
+  }
+
+  if (!pdf) {
+    return (
+      <div className="preview-status">
+        <Loader2 className="spin" size={22} />
+      </div>
+    );
+  }
+
   return (
     <div className="pdf-scroll">
       {document.pages.map((page) => (
         <div className="pdf-page" key={page.page}>
+          <PdfPageCanvas pdf={pdf} pageNumber={page.page} />
           <div className="pdf-page-label">{page.page}</div>
-          <PdfPageCanvas document={document} pageNumber={page.page} />
         </div>
       ))}
     </div>
   );
 }
 
-function PdfPageCanvas({ document, pageNumber }: { document: LocalPdfDocument; pageNumber: number }) {
+function PdfPageCanvas({ pdf, pageNumber }: { pdf: PDFDocumentProxy; pageNumber: number }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let renderTask: RenderTask | null = null;
+
     async function render() {
       const canvas = canvasRef.current;
       if (!canvas) return;
       setError(null);
 
       try {
-        const loadingTask = getDocument({ data: new Uint8Array(document.bytes) });
-        const pdf = await loadingTask.promise;
         const page = await pdf.getPage(pageNumber);
+        if (cancelled) return;
+
         const baseViewport = page.getViewport({ scale: 1 });
-        const availableWidth = Math.max(canvas.parentElement?.clientWidth ?? 720, 320) - 48;
-        const scale = Math.min(availableWidth / baseViewport.width, 1.7);
+        const availableWidth = Math.max(canvas.parentElement?.clientWidth ?? 720, 280) - 4;
+        const scale = Math.min(availableWidth / baseViewport.width, 2);
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const viewport = page.getViewport({ scale });
         const context = canvas.getContext("2d");
         if (!context || cancelled) return;
 
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
+        canvas.width = Math.floor(viewport.width * dpr);
+        canvas.height = Math.floor(viewport.height * dpr);
         canvas.style.width = `${Math.floor(viewport.width)}px`;
         canvas.style.height = `${Math.floor(viewport.height)}px`;
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        await page.render({ canvasContext: context, viewport }).promise;
-        await pdf.destroy();
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        renderTask = page.render({ canvasContext: context, viewport });
+        await renderTask.promise;
       } catch (renderError) {
-        if (!cancelled) setError(errorMessage(renderError));
+        const name = (renderError as { name?: string } | null)?.name;
+        if (!cancelled && name !== "RenderingCancelledException") {
+          setError(errorMessage(renderError));
+        }
       }
     }
 
     render();
     return () => {
       cancelled = true;
+      renderTask?.cancel();
     };
-  }, [document, pageNumber]);
+  }, [pdf, pageNumber]);
 
   return (
     <div className="canvas-wrap">
@@ -288,8 +422,8 @@ function ChatBubble({
   onPreview: (documentId: string) => void;
 }) {
   return (
-    <div className={`message ${message.role}`}>
-      <div>{message.text}</div>
+    <div className={`message ${message.role} ${message.variant === "error" ? "is-error" : ""}`}>
+      <div className="message-text">{message.text}</div>
       {message.attachments && message.attachments.length > 0 ? (
         <div className="attachment-list">
           {message.attachments.map((attachment) => (
@@ -321,7 +455,7 @@ function AttachmentCard({
   return (
     <div className={`attachment-card ${attachment.documentId === activeDocumentId ? "is-active" : ""}`}>
       <button className="attachment-main" onClick={() => onPreview(attachment.documentId)} title="Preview">
-        <FileText size={17} />
+        <FileText size={16} />
         <span>{attachment.name}</span>
         <b aria-label={`${attachment.pageCount} pages`}>{attachment.pageCount}</b>
       </button>
@@ -398,7 +532,8 @@ async function parseCommand(
   return {
     operation: data.operation,
     source: data.source,
-    remaining: data.remaining
+    remaining: data.remaining,
+    limit: data.limit
   };
 }
 

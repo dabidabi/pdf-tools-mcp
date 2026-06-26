@@ -133,12 +133,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       headers
     );
   } catch (error) {
+    // Refund the reserved quota: a failed AI call should not cost the visitor.
+    await writeUsage(env.PDF_TOOLS_QUOTA, quotaKeys, usage.current);
     return json(
       {
         ok: false,
         code: "ai_parse_failed",
         error: error instanceof Error ? error.message : "AI parse failed.",
-        remaining,
+        remaining: Math.max(0, limit - usage.current),
         limit
       },
       502,

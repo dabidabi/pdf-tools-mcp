@@ -57,6 +57,7 @@ export type ParsedCommand = {
   operation: PdfOperation;
   source: ParseSource;
   remaining?: number;
+  limit?: number;
 };
 
 export type ChatAttachment =
@@ -79,6 +80,7 @@ export type ChatMessage = {
   role: "user" | "assistant" | "system";
   text: string;
   attachments?: ChatAttachment[];
+  variant?: "error";
 };
 
 export type ApiParseResponse =
