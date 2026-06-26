@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, FileText, Loader2, MessageSquareText, Plus, SendHorizontal, Sparkles } from "lucide-react";
+import {
+  Download,
+  FileText,
+  Files,
+  Loader2,
+  MessageSquareText,
+  Plus,
+  SendHorizontal,
+  Sparkles
+} from "lucide-react";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { parseLocalCommand } from "./lib/commandParser";
@@ -35,7 +44,7 @@ export function App() {
       const loaded = await Promise.all(pdfs.map(loadPdfFile));
       setDocuments((current) => [...current, ...loaded]);
       setActiveId(loaded[0]?.id ?? activeDocument?.id ?? null);
-      addUser("上传 PDF", loaded.map(pdfAttachment));
+      addUser("PDF", loaded.map(pdfAttachment));
     } catch (error) {
       addAssistant(errorMessage(error));
     } finally {
@@ -52,7 +61,7 @@ export function App() {
     setPrompt("");
 
     if (!activeDocument) {
-      addAssistant("请先上传 PDF。");
+      addAssistant("Add a PDF first.");
       return;
     }
 
@@ -70,11 +79,11 @@ export function App() {
         setDocuments((current) => [...current, ...generated]);
         setActiveId(generated[0]?.id ?? activeDocument.id);
         addAssistant(
-          `${sourceLabel(parsed.source)} ${result.message}`,
+          `${sourceLabel(parsed.source)} · ${result.message}`,
           generated.map((document, index) => resultAttachment(document, result.outputs[index]))
         );
       } else {
-        addAssistant(`${sourceLabel(parsed.source)} ${result.message}`);
+        addAssistant(`${sourceLabel(parsed.source)} · ${result.message}`);
       }
     } catch (error) {
       addAssistant(errorMessage(error));
@@ -113,9 +122,10 @@ export function App() {
     >
       <section className="workspace">
         <div className="preview-toolbar">
-          <div>
-            <span>{activeDocument?.name ?? "未选择 PDF"}</span>
-            {activeDocument ? <b>{activeDocument.pageCount} 页</b> : null}
+          <div className="document-chip" title={activeDocument?.name ?? "PDF"}>
+            <FileText size={18} />
+            <span>{activeDocument?.name ?? "PDF"}</span>
+            {activeDocument ? <b aria-label={`${activeDocument.pageCount} pages`}>{activeDocument.pageCount}</b> : null}
           </div>
         </div>
 
@@ -125,7 +135,7 @@ export function App() {
           ) : (
             <div className="empty-preview">
               <FileText size={64} />
-              <span>PDF</span>
+              <Plus size={24} />
             </div>
           )}
         </div>
@@ -135,9 +145,9 @@ export function App() {
         <div className="chat-header">
           <div className="brand">
             <MessageSquareText size={22} />
-            <div>
-              <h1>PDF Tools MCP</h1>
-              <span>{remaining === null ? "AI 10/天" : `AI 剩余 ${remaining}`}</span>
+            <div className="quota-pill" title="AI quota">
+              <Sparkles size={15} />
+              <span>{remaining ?? 10}</span>
             </div>
           </div>
           <input
@@ -156,8 +166,8 @@ export function App() {
         <div className="messages">
           {messages.length === 0 && documents.length === 0 ? (
             <div className="empty-chat">
-              <Sparkles size={28} />
-              <span>PDF Tools MCP</span>
+              <Files size={30} />
+              <MessageSquareText size={28} />
             </div>
           ) : (
             messages.map((message) => (
@@ -178,13 +188,15 @@ export function App() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isLoadingFiles}
-            title="上传 PDF"
+            title="Add PDF"
+            aria-label="Add PDF"
           >
             {isLoadingFiles ? <Loader2 className="spin" size={18} /> : <Plus size={20} />}
           </button>
           <textarea
             value={prompt}
-            placeholder="发送 PDF 命令"
+            placeholder="Ask PDF..."
+            aria-label="PDF command"
             onChange={(event) => setPrompt(event.target.value)}
             onPaste={handlePaste}
             onKeyDown={(event) => {
@@ -194,7 +206,7 @@ export function App() {
               }
             }}
           />
-          <button className="send-button" title="发送" type="submit" disabled={isRunning || !prompt.trim()}>
+          <button className="send-button" title="Send" aria-label="Send" type="submit" disabled={isRunning || !prompt.trim()}>
             {isRunning ? <Loader2 className="spin" size={18} /> : <SendHorizontal size={18} />}
           </button>
         </form>
@@ -308,10 +320,10 @@ function AttachmentCard({
 }) {
   return (
     <div className={`attachment-card ${attachment.documentId === activeDocumentId ? "is-active" : ""}`}>
-      <button className="attachment-main" onClick={() => onPreview(attachment.documentId)}>
+      <button className="attachment-main" onClick={() => onPreview(attachment.documentId)} title="Preview">
         <FileText size={17} />
         <span>{attachment.name}</span>
-        <b>{attachment.pageCount}</b>
+        <b aria-label={`${attachment.pageCount} pages`}>{attachment.pageCount}</b>
       </button>
       {attachment.type === "result" && output ? <DownloadAttachment output={output} /> : null}
     </div>
@@ -326,7 +338,7 @@ function DownloadAttachment({ output }: { output: PdfOutput }) {
   }, [url]);
 
   return (
-    <a className="attachment-download" href={url} download={output.name} title="下载">
+    <a className="attachment-download" href={url} download={output.name} title="Download" aria-label="Download">
       <Download size={15} />
     </a>
   );
@@ -391,9 +403,9 @@ async function parseCommand(
 }
 
 function sourceLabel(source: ParsedCommand["source"]): string {
-  if (source === "local") return "本地解析：";
-  if (source === "ai-cache") return "缓存解析：";
-  return "AI 解析：";
+  if (source === "local") return "Local";
+  if (source === "ai-cache") return "Cache";
+  return "AI";
 }
 
 function errorMessage(error: unknown): string {

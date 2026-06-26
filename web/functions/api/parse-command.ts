@@ -44,7 +44,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       {
         ok: false,
         code: "missing_quota_binding",
-        error: "Cloudflare KV binding PDF_TOOLS_QUOTA 尚未配置。"
+        error: "Quota storage is not configured."
       },
       503,
       headers
@@ -57,10 +57,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const message = body.value.message?.trim() ?? "";
   const documents = Array.isArray(body.value.documents) ? body.value.documents : [];
   if (!message) {
-    return json({ ok: false, code: "missing_message", error: "缺少文本指令。" }, 400, headers);
+    return json({ ok: false, code: "missing_message", error: "Missing command." }, 400, headers);
   }
   if (documents.length < 1 || !Number.isInteger(documents[0].pageCount) || Number(documents[0].pageCount) < 1) {
-    return json({ ok: false, code: "missing_pdf_context", error: "缺少 PDF 页数信息。" }, 400, headers);
+    return json({ ok: false, code: "missing_pdf_context", error: "Missing PDF context." }, 400, headers);
   }
 
   const limit = parseLimit(env.PDF_TOOLS_DAILY_LIMIT);
@@ -71,7 +71,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       {
         ok: false,
         code: "daily_limit_reached",
-        error: "今天的免费 AI 解析次数已用完。",
+        error: "Daily AI limit reached.",
         remaining: 0,
         limit
       },
@@ -101,7 +101,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       {
         ok: false,
         code: "missing_ai_binding",
-        error: "Cloudflare Workers AI binding AI 尚未配置。"
+        error: "AI is not configured."
       },
       503,
       headers
@@ -137,7 +137,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       {
         ok: false,
         code: "ai_parse_failed",
-        error: error instanceof Error ? error.message : "AI 解析失败。",
+        error: error instanceof Error ? error.message : "AI parse failed.",
         remaining,
         limit
       },
@@ -184,7 +184,7 @@ async function parseWithAi(
       lastError = error;
     }
   }
-  throw lastError instanceof Error ? lastError : new Error("模型没有返回可用 JSON。");
+  throw lastError instanceof Error ? lastError : new Error("Model returned no usable JSON.");
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
@@ -221,31 +221,31 @@ function systemPrompt(): string {
 }
 
 function normalizeOperation(value: unknown, documents: IncomingDocument[]): PdfOperation {
-  if (!isRecord(value)) throw new Error("AI 返回的不是 JSON object。");
+  if (!isRecord(value)) throw new Error("AI returned no JSON object.");
   const rawTool = String(value.tool ?? value.operation ?? "").replace(/^pdf_/, "");
   const pageCount = Number(documents[0]?.pageCount ?? 0);
 
   if (rawTool === "inspect") return { tool: "inspect" };
   if (rawTool === "merge") {
-    return documents.length >= 2 ? { tool: "merge" } : { tool: "unsupported", reason: "需要至少两个 PDF 才能合并。" };
+    return documents.length >= 2 ? { tool: "merge" } : { tool: "unsupported", reason: "Add at least 2 PDFs." };
   }
   if (rawTool === "extract_pages") {
     return { tool: "extract_pages", pages: normalizePages(value.pages, pageCount) };
   }
   if (rawTool === "delete_pages") {
     const pages = normalizePages(value.pages, pageCount);
-    if (new Set(pages).size >= pageCount) return { tool: "unsupported", reason: "不能删除所有页面。" };
+    if (new Set(pages).size >= pageCount) return { tool: "unsupported", reason: "Keep at least 1 page." };
     return { tool: "delete_pages", pages };
   }
   if (rawTool === "rotate_pages") {
     const angle = Number(value.angle);
-    if (angle !== 90 && angle !== 180 && angle !== 270) throw new Error("旋转角度必须是 90、180 或 270。");
+    if (angle !== 90 && angle !== 180 && angle !== 270) throw new Error("Use 90, 180, or 270 degrees.");
     return { tool: "rotate_pages", pages: normalizePages(value.pages, pageCount), angle };
   }
   if (rawTool === "reorder_pages") {
     const order = normalizePages(value.order, pageCount);
     if (order.length !== pageCount || new Set(order).size !== pageCount) {
-      throw new Error("重排页面必须包含每一页且不能重复。");
+      throw new Error("Use every page once.");
     }
     return { tool: "reorder_pages", order };
   }
@@ -253,31 +253,31 @@ function normalizeOperation(value: unknown, documents: IncomingDocument[]): PdfO
     return { tool: "split", ranges: normalizeRanges(value.ranges, pageCount) };
   }
   if (rawTool === "unsupported") {
-    return { tool: "unsupported", reason: String(value.reason || "暂不支持这个操作。") };
+    return { tool: "unsupported", reason: String(value.reason || "Not supported yet.") };
   }
 
-  return { tool: "unsupported", reason: "暂不支持这个操作。" };
+  return { tool: "unsupported", reason: "Not supported yet." };
 }
 
 function normalizePages(value: unknown, pageCount: number): number[] {
-  if (!Array.isArray(value) || value.length === 0) throw new Error("缺少页码。");
+  if (!Array.isArray(value) || value.length === 0) throw new Error("Missing pages.");
   const pages = Array.from(new Set(value.map((item) => Number(item))));
   for (const page of pages) {
     if (!Number.isInteger(page) || page < 1 || page > pageCount) {
-      throw new Error(`页码 ${page} 超出范围，当前 PDF 共 ${pageCount} 页。`);
+      throw new Error(`Page ${page} is out of bounds. This PDF has ${pageCount} pages.`);
     }
   }
   return pages;
 }
 
 function normalizeRanges(value: unknown, pageCount: number): Array<{ start: number; end: number }> {
-  if (!Array.isArray(value) || value.length === 0) throw new Error("缺少拆分范围。");
+  if (!Array.isArray(value) || value.length === 0) throw new Error("Missing split ranges.");
   return value.map((item) => {
-    if (!isRecord(item)) throw new Error("拆分范围格式错误。");
+    if (!isRecord(item)) throw new Error("Invalid split range.");
     const start = Number(item.start);
     const end = Number(item.end);
     if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || end > pageCount) {
-      throw new Error(`拆分范围 ${start}-${end} 超出范围，当前 PDF 共 ${pageCount} 页。`);
+      throw new Error(`Range ${start}-${end} is out of bounds. This PDF has ${pageCount} pages.`);
     }
     return { start, end };
   });
@@ -293,7 +293,7 @@ function extractJson(raw: unknown): unknown {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start === -1 || end === -1 || end < start) {
-    throw new Error("模型没有返回 JSON。");
+    throw new Error("Model returned no JSON.");
   }
   return JSON.parse(text.slice(start, end + 1));
 }
@@ -321,7 +321,7 @@ async function readBody(request: Request): Promise<{ ok: true; value: IncomingBo
   } catch {
     return {
       ok: false,
-      response: { ok: false, code: "invalid_json", error: "请求体不是有效 JSON。" }
+      response: { ok: false, code: "invalid_json", error: "Invalid JSON body." }
     };
   }
 }

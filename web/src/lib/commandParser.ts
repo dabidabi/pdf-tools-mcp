@@ -25,7 +25,7 @@ export function parseLocalCommand(input: string, documents: LocalPdfDocument[]):
 
   if (/(合并|merge|combine)/i.test(text)) {
     if (documents.length < 2) {
-      return { tool: "unsupported", reason: "需要至少上传两个 PDF 才能合并。" };
+      return { tool: "unsupported", reason: "Add at least 2 PDFs." };
     }
     return { tool: "merge" };
   }
@@ -36,28 +36,28 @@ export function parseLocalCommand(input: string, documents: LocalPdfDocument[]):
     const pages = extractPages(withoutAngle, pageCount);
     return pages.length > 0
       ? { tool: "rotate_pages", pages, angle: rotation }
-      : { tool: "unsupported", reason: "没有识别到要旋转的页面。" };
+      : { tool: "unsupported", reason: "Pick pages to rotate." };
   }
 
   if (/(删除|移除|去掉|delete|remove)/i.test(text)) {
     const pages = extractPages(text, pageCount);
     return pages.length > 0
       ? { tool: "delete_pages", pages }
-      : { tool: "unsupported", reason: "没有识别到要删除的页面。" };
+      : { tool: "unsupported", reason: "Pick pages to delete." };
   }
 
   if (/(提取|抽取|导出|保留|extract|export|keep)/i.test(text)) {
     const pages = extractPages(text, pageCount);
     return pages.length > 0
       ? { tool: "extract_pages", pages }
-      : { tool: "unsupported", reason: "没有识别到要提取的页面。" };
+      : { tool: "unsupported", reason: "Pick pages to extract." };
   }
 
   if (/(拆分|分割|split)/i.test(text)) {
     const ranges = extractRanges(text, pageCount);
     return ranges.length > 0
       ? { tool: "split", ranges }
-      : { tool: "unsupported", reason: "没有识别到拆分范围。" };
+      : { tool: "unsupported", reason: "Pick split ranges." };
   }
 
   if (/(重排|重新排序|顺序|reorder|order)/i.test(text)) {
@@ -65,7 +65,7 @@ export function parseLocalCommand(input: string, documents: LocalPdfDocument[]):
     if (order.length === pageCount && isCompletePageSet(order, pageCount)) {
       return { tool: "reorder_pages", order };
     }
-    return { tool: "unsupported", reason: "重排页面需要给出完整页码顺序。" };
+    return { tool: "unsupported", reason: "Use every page once." };
   }
 
   return null;

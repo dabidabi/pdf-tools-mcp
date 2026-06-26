@@ -3,7 +3,7 @@ import type { LocalPdfDocument, OperationResult, PdfOperation, PdfOutput, PdfPag
 
 export async function loadPdfFile(file: File): Promise<LocalPdfDocument> {
   if (file.type && file.type !== "application/pdf") {
-    throw new Error(`${file.name} 不是 PDF 文件。`);
+    throw new Error(`${file.name} is not a PDF.`);
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -62,14 +62,14 @@ function inspect(document: LocalPdfDocument): OperationResult {
   const rotations = Array.from(new Set(document.pages.map((page) => page.rotation))).join(", ");
   const firstPage = document.pages[0];
   return {
-    message: `${document.name}: ${document.pageCount} 页，首页 ${formatSize(firstPage.width, firstPage.height)}，旋转角度 ${rotations || 0}。`,
+    message: `${document.name} · ${document.pageCount} pages · ${formatSize(firstPage.width, firstPage.height)} · ${rotations || 0}°`,
     outputs: []
   };
 }
 
 async function merge(documents: LocalPdfDocument[]): Promise<OperationResult> {
   if (documents.length < 2) {
-    throw new Error("至少需要两个 PDF 才能合并。");
+    throw new Error("Add at least 2 PDFs.");
   }
 
   const output = await PDFDocument.create();
@@ -84,7 +84,7 @@ async function merge(documents: LocalPdfDocument[]): Promise<OperationResult> {
   const name = uniqueOutputName("merged.pdf");
   const pdf = await makeOutput(name, await output.save(), "merge");
   return {
-    message: `已合并 ${documents.length} 个 PDF，共 ${total} 页。`,
+    message: `Merged ${documents.length} PDFs · ${total} pages`,
     outputs: [pdf]
   };
 }
@@ -98,7 +98,7 @@ async function extractPages(document: LocalPdfDocument, pages: number[]): Promis
 
   const name = uniqueOutputName(withSuffix(document.name, "extracted"));
   return {
-    message: `已提取 ${pagesLabel(indices)}。`,
+    message: `Extracted ${pagesLabel(indices)}`,
     outputs: [await makeOutput(name, await output.save(), "extract_pages")]
   };
 }
@@ -107,7 +107,7 @@ async function deletePages(document: LocalPdfDocument, pages: number[]): Promise
   const source = await loadPdf(document.bytes);
   const deleteSet = new Set(normalizePages(pages, document.pageCount));
   if (deleteSet.size >= document.pageCount) {
-    throw new Error("不能删除所有页面，至少要保留一页。");
+    throw new Error("Keep at least 1 page.");
   }
 
   const keepIndices = source.getPageIndices().filter((index) => !deleteSet.has(index + 1));
@@ -117,7 +117,7 @@ async function deletePages(document: LocalPdfDocument, pages: number[]): Promise
 
   const name = uniqueOutputName(withSuffix(document.name, "deleted"));
   return {
-    message: `已删除 ${pagesLabel(Array.from(deleteSet))}，剩余 ${keepIndices.length} 页。`,
+    message: `Deleted ${pagesLabel(Array.from(deleteSet))} · ${keepIndices.length} left`,
     outputs: [await makeOutput(name, await output.save(), "delete_pages")]
   };
 }
@@ -141,7 +141,7 @@ async function rotatePages(
 
   const name = uniqueOutputName(withSuffix(document.name, "rotated"));
   return {
-    message: `已旋转 ${pagesLabel(Array.from(rotateSet))} ${angle} 度。`,
+    message: `Rotated ${pagesLabel(Array.from(rotateSet))} · ${angle}°`,
     outputs: [await makeOutput(name, await output.save(), "rotate_pages")]
   };
 }
@@ -150,7 +150,7 @@ async function reorderPages(document: LocalPdfDocument, order: number[]): Promis
   const source = await loadPdf(document.bytes);
   const normalized = normalizePages(order, document.pageCount);
   if (normalized.length !== document.pageCount || new Set(normalized).size !== document.pageCount) {
-    throw new Error("重排页面需要包含每一页且不能重复。");
+    throw new Error("Use every page once.");
   }
 
   const output = await PDFDocument.create();
@@ -159,7 +159,7 @@ async function reorderPages(document: LocalPdfDocument, order: number[]): Promis
 
   const name = uniqueOutputName(withSuffix(document.name, "reordered"));
   return {
-    message: `已按 ${normalized.join(", ")} 重排页面。`,
+    message: `Reordered · ${normalized.join(", ")}`,
     outputs: [await makeOutput(name, await output.save(), "reorder_pages")]
   };
 }
@@ -170,7 +170,7 @@ async function splitPdf(document: LocalPdfDocument, ranges: { start: number; end
 
   for (const [index, range] of ranges.entries()) {
     if (range.start < 1 || range.end < range.start || range.end > document.pageCount) {
-      throw new Error(`拆分范围 ${range.start}-${range.end} 超出页码范围。`);
+      throw new Error(`Range ${range.start}-${range.end} is out of bounds.`);
     }
     const output = await PDFDocument.create();
     const pageIndices = Array.from({ length: range.end - range.start + 1 }, (_, offset) => range.start - 1 + offset);
@@ -186,7 +186,7 @@ async function splitPdf(document: LocalPdfDocument, ranges: { start: number; end
   }
 
   return {
-    message: `已拆分为 ${outputs.length} 个 PDF。`,
+    message: `Split into ${outputs.length} PDFs`,
     outputs
   };
 }
@@ -195,7 +195,7 @@ function normalizePages(pages: number[], pageCount: number): number[] {
   const unique = Array.from(new Set(pages));
   for (const page of unique) {
     if (!Number.isInteger(page) || page < 1 || page > pageCount) {
-      throw new Error(`页码 ${page} 超出范围，当前 PDF 共 ${pageCount} 页。`);
+      throw new Error(`Page ${page} is out of bounds. This PDF has ${pageCount} pages.`);
     }
   }
   return unique;
@@ -205,7 +205,7 @@ async function loadPdf(bytes: Uint8Array): Promise<PDFDocument> {
   try {
     return await PDFDocument.load(bytes);
   } catch (error) {
-    throw new Error(`无法读取 PDF。当前网页版暂不处理加密 PDF。${error instanceof Error ? ` ${error.message}` : ""}`);
+    throw new Error(`Could not read this PDF. Encrypted PDFs are not supported yet.${error instanceof Error ? ` ${error.message}` : ""}`);
   }
 }
 
@@ -230,7 +230,7 @@ function formatSize(width: number, height: number): string {
 }
 
 function pagesLabel(pages: number[]): string {
-  return `第 ${[...pages].sort((a, b) => a - b).join(", ")} 页`;
+  return `p. ${[...pages].sort((a, b) => a - b).join(", ")}`;
 }
 
 function withSuffix(name: string, suffix: string): string {
