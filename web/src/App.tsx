@@ -43,6 +43,8 @@ export function App() {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const previewSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const previewScrollRailRef = useRef<HTMLDivElement | null>(null);
+  const previewScrollDragOffsetRef = useRef<number | null>(null);
 
   const allDocuments = useMemo(() => [...documents, ...pendingDocuments], [documents, pendingDocuments]);
 
@@ -63,7 +65,7 @@ export function App() {
       return;
     }
 
-    const trackHeight = Math.max(80, node.clientHeight - 24);
+    const trackHeight = Math.max(80, previewScrollRailRef.current?.clientHeight ?? node.clientHeight - 24);
     const thumbHeight = Math.max(48, Math.round((node.clientHeight / node.scrollHeight) * trackHeight));
     const maxThumbTop = Math.max(0, trackHeight - thumbHeight);
     const scrollRange = Math.max(1, node.scrollHeight - node.clientHeight);
@@ -73,6 +75,49 @@ export function App() {
     setPreviewScroll((current) =>
       current.visible === next.visible && current.top === next.top && current.height === next.height ? current : next
     );
+  }, []);
+
+  const scrollPreviewFromPointer = useCallback((clientY: number, thumbOffset: number) => {
+    const node = previewSurfaceRef.current;
+    const rail = previewScrollRailRef.current;
+    if (!node || !rail) return;
+
+    const railRect = rail.getBoundingClientRect();
+    const maxThumbTop = Math.max(0, railRect.height - previewScroll.height);
+    const desiredTop = Math.min(Math.max(clientY - railRect.top - thumbOffset, 0), maxThumbTop);
+    const scrollRange = Math.max(1, node.scrollHeight - node.clientHeight);
+    node.scrollTop = maxThumbTop > 0 ? (desiredTop / maxThumbTop) * scrollRange : 0;
+    updatePreviewScroll();
+  }, [previewScroll.height, updatePreviewScroll]);
+
+  const handlePreviewScrollPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const rail = previewScrollRailRef.current;
+    if (!rail) return;
+
+    event.preventDefault();
+    const target = event.target as HTMLElement;
+    const thumb = target.closest(".preview-scroll-thumb");
+    const thumbRect = thumb?.getBoundingClientRect();
+    const thumbOffset = thumbRect ? event.clientY - thumbRect.top : previewScroll.height / 2;
+
+    previewScrollDragOffsetRef.current = thumbOffset;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    scrollPreviewFromPointer(event.clientY, thumbOffset);
+  }, [previewScroll.height, scrollPreviewFromPointer]);
+
+  const handlePreviewScrollPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const thumbOffset = previewScrollDragOffsetRef.current;
+    if (thumbOffset === null) return;
+    event.preventDefault();
+    scrollPreviewFromPointer(event.clientY, thumbOffset);
+  }, [scrollPreviewFromPointer]);
+
+  const finishPreviewScrollDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    previewScrollDragOffsetRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }, []);
 
   useEffect(() => {
@@ -263,7 +308,15 @@ export function App() {
           )}
         </div>
         {previewScroll.visible ? (
-          <div className="preview-scroll-rail" aria-hidden="true">
+          <div
+            className="preview-scroll-rail"
+            ref={previewScrollRailRef}
+            aria-hidden="true"
+            onPointerDown={handlePreviewScrollPointerDown}
+            onPointerMove={handlePreviewScrollPointerMove}
+            onPointerUp={finishPreviewScrollDrag}
+            onPointerCancel={finishPreviewScrollDrag}
+          >
             <span
               className="preview-scroll-thumb"
               style={{ height: `${previewScroll.height}px`, transform: `translateY(${previewScroll.top}px)` }}
