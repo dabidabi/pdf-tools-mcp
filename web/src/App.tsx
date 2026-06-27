@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
   Download,
@@ -38,6 +38,7 @@ export function App() {
   const [remaining, setRemaining] = useState<number | null>(null);
   const [limit, setLimit] = useState(10);
   const [isDragging, setIsDragging] = useState(false);
+  const [previewScroll, setPreviewScroll] = useState({ visible: false, top: 0, height: 0 });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
@@ -52,6 +53,28 @@ export function App() {
 
   const outputsById = useMemo(() => new Map(outputs.map((output) => [output.id, output])), [outputs]);
 
+  const updatePreviewScroll = useCallback(() => {
+    const node = previewSurfaceRef.current;
+    if (!node) return;
+
+    const visible = node.scrollHeight > node.clientHeight + 2;
+    if (!visible) {
+      setPreviewScroll((current) => (current.visible ? { visible: false, top: 0, height: 0 } : current));
+      return;
+    }
+
+    const trackHeight = Math.max(80, node.clientHeight - 24);
+    const thumbHeight = Math.max(48, Math.round((node.clientHeight / node.scrollHeight) * trackHeight));
+    const maxThumbTop = Math.max(0, trackHeight - thumbHeight);
+    const scrollRange = Math.max(1, node.scrollHeight - node.clientHeight);
+    const thumbTop = Math.round((node.scrollTop / scrollRange) * maxThumbTop);
+    const next = { visible: true, top: thumbTop, height: thumbHeight };
+
+    setPreviewScroll((current) =>
+      current.visible === next.visible && current.top === next.top && current.height === next.height ? current : next
+    );
+  }, []);
+
   useEffect(() => {
     const node = messagesRef.current;
     if (node) node.scrollTop = node.scrollHeight;
@@ -62,7 +85,13 @@ export function App() {
     if (!node) return;
     node.scrollTop = 0;
     node.scrollLeft = 0;
-  }, [activeDocument?.id]);
+    requestAnimationFrame(updatePreviewScroll);
+    const timers = [
+      window.setTimeout(updatePreviewScroll, 120),
+      window.setTimeout(updatePreviewScroll, 500)
+    ];
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [activeDocument?.id, updatePreviewScroll]);
 
   async function handleFiles(files: FileList | File[]) {
     const pdfs = Array.from(files).filter((file) => /\.pdf$/i.test(file.name) || file.type === "application/pdf");
@@ -211,9 +240,9 @@ export function App() {
           ) : null}
         </div>
 
-        <div className="preview-surface" ref={previewSurfaceRef}>
+        <div className="preview-surface" ref={previewSurfaceRef} onScroll={updatePreviewScroll}>
           {activeDocument ? (
-            <PdfScrollView document={activeDocument} />
+            <PdfScrollView document={activeDocument} onLayoutChange={updatePreviewScroll} />
           ) : (
             <button
               type="button"
@@ -233,6 +262,14 @@ export function App() {
             </button>
           )}
         </div>
+        {previewScroll.visible ? (
+          <div className="preview-scroll-rail" aria-hidden="true">
+            <span
+              className="preview-scroll-thumb"
+              style={{ height: `${previewScroll.height}px`, transform: `translateY(${previewScroll.top}px)` }}
+            />
+          </div>
+        ) : null}
       </section>
 
       <aside className="chat-panel">
@@ -374,8 +411,21 @@ function usePdfjsDocument(bytes: Uint8Array) {
   return { pdf, error };
 }
 
-function PdfScrollView({ document }: { document: LocalPdfDocument }) {
+function PdfScrollView({
+  document,
+  onLayoutChange
+}: {
+  document: LocalPdfDocument;
+  onLayoutChange: () => void;
+}) {
   const { pdf, error } = usePdfjsDocument(document.bytes);
+
+  useEffect(() => {
+    if (!pdf) return;
+    requestAnimationFrame(onLayoutChange);
+    const timer = window.setTimeout(onLayoutChange, 300);
+    return () => window.clearTimeout(timer);
+  }, [pdf, onLayoutChange]);
 
   if (error) {
     return <div className="preview-status canvas-error">{error}</div>;
@@ -394,7 +444,7 @@ function PdfScrollView({ document }: { document: LocalPdfDocument }) {
       {document.pages.map((page) => (
         <div className="pdf-page" key={page.page}>
           <div className="pdf-page-frame">
-            <PdfPageCanvas pdf={pdf} pageNumber={page.page} />
+            <PdfPageCanvas pdf={pdf} pageNumber={page.page} onRenderComplete={onLayoutChange} />
           </div>
           <div className="pdf-page-label">{page.page}</div>
         </div>
@@ -403,7 +453,15 @@ function PdfScrollView({ document }: { document: LocalPdfDocument }) {
   );
 }
 
-function PdfPageCanvas({ pdf, pageNumber }: { pdf: PDFDocumentProxy; pageNumber: number }) {
+function PdfPageCanvas({
+  pdf,
+  pageNumber,
+  onRenderComplete
+}: {
+  pdf: PDFDocumentProxy;
+  pageNumber: number;
+  onRenderComplete: () => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -436,6 +494,7 @@ function PdfPageCanvas({ pdf, pageNumber }: { pdf: PDFDocumentProxy; pageNumber:
 
         renderTask = page.render({ canvasContext: context, viewport });
         await renderTask.promise;
+        if (!cancelled) onRenderComplete();
       } catch (renderError) {
         const name = (renderError as { name?: string } | null)?.name;
         if (!cancelled && name !== "RenderingCancelledException") {
@@ -449,7 +508,7 @@ function PdfPageCanvas({ pdf, pageNumber }: { pdf: PDFDocumentProxy; pageNumber:
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [pdf, pageNumber]);
+  }, [pdf, pageNumber, onRenderComplete]);
 
   return (
     <div className="canvas-wrap">
