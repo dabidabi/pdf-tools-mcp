@@ -14,7 +14,15 @@ import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { parseLocalCommand } from "./lib/commandParser";
 import { createDocumentFromBytes, loadPdfFile, runPdfOperation } from "./lib/pdfActions";
-import type { ApiParseResponse, ChatAttachment, ChatMessage, LocalPdfDocument, ParsedCommand, PdfOutput } from "./lib/types";
+import type {
+  ApiParseResponse,
+  ApiQuotaResponse,
+  ChatAttachment,
+  ChatMessage,
+  LocalPdfDocument,
+  ParsedCommand,
+  PdfOutput
+} from "./lib/types";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -124,6 +132,24 @@ export function App() {
     const node = messagesRef.current;
     if (node) node.scrollTop = node.scrollHeight;
   }, [messages]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchQuotaStatus()
+      .then((status) => {
+        if (cancelled) return;
+        setRemaining(status.remaining);
+        setLimit(status.limit);
+      })
+      .catch(() => {
+        if (!cancelled) setRemaining((current) => current);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const node = previewSurfaceRef.current;
@@ -333,9 +359,16 @@ export function App() {
             </span>
             <span className="brand-name">PDF Studio</span>
           </div>
-          <div className="quota-pill" title={`${remaining ?? limit} of ${limit} AI commands left today`}>
+          <div
+            className="quota-pill"
+            title={
+              remaining === null
+                ? "Checking AI commands left today"
+                : `${remaining} of ${limit} AI commands left today`
+            }
+          >
             <Sparkles size={14} />
-            <span>{remaining ?? limit}</span>
+            <span>{remaining === null ? "…" : remaining}</span>
           </div>
           <input
             ref={fileInputRef}
@@ -721,6 +754,18 @@ async function parseCommand(
     remaining: data.remaining,
     limit: data.limit
   };
+}
+
+async function fetchQuotaStatus(): Promise<{ remaining: number; limit: number }> {
+  const response = await fetch("/api/quota");
+  const data = (await response.json()) as ApiQuotaResponse;
+  if (data.ok) {
+    return { remaining: data.remaining, limit: data.limit };
+  }
+  if (data.remaining !== undefined && data.limit !== undefined) {
+    return { remaining: data.remaining, limit: data.limit };
+  }
+  throw new Error(data.error);
 }
 
 function sourceLabel(source: ParsedCommand["source"]): string {
