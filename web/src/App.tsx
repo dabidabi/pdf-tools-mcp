@@ -38,7 +38,6 @@ export function App() {
   const [remaining, setRemaining] = useState<number | null>(null);
   const [limit, setLimit] = useState(10);
   const [isDragging, setIsDragging] = useState(false);
-  const [previewScroll, setPreviewScroll] = useState({ visible: false, top: 0, height: 0 });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
@@ -63,31 +62,7 @@ export function App() {
     if (!node) return;
     node.scrollTop = 0;
     node.scrollLeft = 0;
-    requestAnimationFrame(updatePreviewScroll);
-    const timer = window.setTimeout(updatePreviewScroll, 500);
-    return () => window.clearTimeout(timer);
   }, [activeDocument?.id]);
-
-  function updatePreviewScroll() {
-    const node = previewSurfaceRef.current;
-    if (!node) return;
-
-    const visible = node.scrollHeight > node.clientHeight + 2;
-    if (!visible) {
-      setPreviewScroll((current) => (current.visible ? { visible: false, top: 0, height: 0 } : current));
-      return;
-    }
-
-    const trackHeight = Math.max(80, node.clientHeight - 24);
-    const thumbHeight = Math.max(48, Math.round((node.clientHeight / node.scrollHeight) * trackHeight));
-    const maxThumbTop = Math.max(0, trackHeight - thumbHeight);
-    const scrollRange = Math.max(1, node.scrollHeight - node.clientHeight);
-    const thumbTop = Math.round((node.scrollTop / scrollRange) * maxThumbTop);
-    const next = { visible: true, top: thumbTop, height: thumbHeight };
-    setPreviewScroll((current) =>
-      current.visible === next.visible && current.top === next.top && current.height === next.height ? current : next
-    );
-  }
 
   async function handleFiles(files: FileList | File[]) {
     const pdfs = Array.from(files).filter((file) => /\.pdf$/i.test(file.name) || file.type === "application/pdf");
@@ -236,7 +211,7 @@ export function App() {
           ) : null}
         </div>
 
-        <div className="preview-surface" ref={previewSurfaceRef} onScroll={updatePreviewScroll}>
+        <div className="preview-surface" ref={previewSurfaceRef}>
           {activeDocument ? (
             <PdfScrollView document={activeDocument} />
           ) : (
@@ -258,14 +233,6 @@ export function App() {
             </button>
           )}
         </div>
-        {previewScroll.visible ? (
-          <div className="preview-scroll-rail" aria-hidden="true">
-            <span
-              className="preview-scroll-thumb"
-              style={{ height: `${previewScroll.height}px`, transform: `translateY(${previewScroll.top}px)` }}
-            />
-          </div>
-        ) : null}
       </section>
 
       <aside className="chat-panel">
