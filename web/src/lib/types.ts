@@ -98,3 +98,17 @@ export type ApiParseResponse =
       remaining?: number;
       limit?: number;
     };
+
+export type ApiQuotaResponse =
+  | {
+      ok: true;
+      remaining: number;
+      limit: number;
+    }
+  | {
+      ok: false;
+      error: string;
+      code?: string;
+      remaining?: number;
+      limit?: number;
+    };
