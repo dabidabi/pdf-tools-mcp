@@ -6,7 +6,8 @@ import {
   FileUp,
   Loader2,
   Plus,
-  Sparkles
+  Sparkles,
+  X
 } from "lucide-react";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
@@ -27,6 +28,7 @@ const EXAMPLES = [
 
 export function App() {
   const [documents, setDocuments] = useState<LocalPdfDocument[]>([]);
+  const [pendingDocuments, setPendingDocuments] = useState<LocalPdfDocument[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [outputs, setOutputs] = useState<PdfOutput[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -40,9 +42,11 @@ export function App() {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
 
+  const allDocuments = useMemo(() => [...documents, ...pendingDocuments], [documents, pendingDocuments]);
+
   const activeDocument = useMemo(
-    () => documents.find((document) => document.id === activeId) ?? documents[0] ?? null,
-    [activeId, documents]
+    () => allDocuments.find((document) => document.id === activeId) ?? allDocuments[0] ?? null,
+    [activeId, allDocuments]
   );
 
   const outputsById = useMemo(() => new Map(outputs.map((output) => [output.id, output])), [outputs]);
@@ -59,9 +63,9 @@ export function App() {
     setIsLoadingFiles(true);
     try {
       const loaded = await Promise.all(pdfs.map(loadPdfFile));
-      setDocuments((current) => [...current, ...loaded]);
+      setPendingDocuments((current) => [...current, ...loaded]);
       setActiveId(loaded[0]?.id ?? activeDocument?.id ?? null);
-      addUser(loaded.length > 1 ? `Added ${loaded.length} PDFs` : "Added a PDF", loaded.map(pdfAttachment));
+      textareaRef.current?.focus();
     } catch (error) {
       addAssistant(errorMessage(error), undefined, "error");
     } finally {
@@ -74,28 +78,39 @@ export function App() {
     const text = prompt.trim();
     if (!text || isRunning) return;
 
-    addUser(text);
-    setPrompt("");
+    const submittedDocuments = [...documents, ...pendingDocuments];
+    const submittedActiveDocument =
+      submittedDocuments.find((document) => document.id === activeId) ?? submittedDocuments[0] ?? null;
+    const submittedAttachments = pendingDocuments.map(pdfAttachment);
 
-    if (!activeDocument) {
+    addUser(text, submittedAttachments.length > 0 ? submittedAttachments : undefined);
+    setPrompt("");
+    setPendingDocuments([]);
+
+    if (!submittedActiveDocument) {
       addAssistant("Add a PDF first, then tell me what to do with it.");
       return;
     }
 
+    if (pendingDocuments.length > 0) {
+      setDocuments(submittedDocuments);
+    }
+    setActiveId(submittedActiveDocument.id);
+
     setIsRunning(true);
     try {
-      const parsed = await parseCommand(text, documents, activeDocument);
+      const parsed = await parseCommand(text, submittedDocuments, submittedActiveDocument);
       if (parsed.remaining !== undefined) setRemaining(parsed.remaining);
       if (parsed.limit !== undefined) setLimit(parsed.limit);
-      const result = await runPdfOperation(parsed.operation, activeDocument, documents);
+      const result = await runPdfOperation(parsed.operation, submittedActiveDocument, submittedDocuments);
 
       if (result.outputs.length > 0) {
         setOutputs((current) => [...result.outputs, ...current]);
         const generated = await Promise.all(
           result.outputs.map((output) => createDocumentFromBytes(output.name, output.bytes))
         );
-        setDocuments((current) => [...current, ...generated]);
-        setActiveId(generated[0]?.id ?? activeDocument.id);
+        setDocuments([...submittedDocuments, ...generated]);
+        setActiveId(generated[0]?.id ?? submittedActiveDocument.id);
         addAssistant(
           `${sourceLabel(parsed.source)} · ${result.message}`,
           generated.map((document, index) => resultAttachment(document, result.outputs[index]))
@@ -123,6 +138,15 @@ export function App() {
   function pickExample(example: string) {
     setPrompt(example);
     textareaRef.current?.focus();
+  }
+
+  function removePendingDocument(documentId: string) {
+    setPendingDocuments((current) => current.filter((document) => document.id !== documentId));
+    if (activeId === documentId) {
+      const nextDocument =
+        documents[0] ?? pendingDocuments.find((document) => document.id !== documentId) ?? null;
+      setActiveId(nextDocument?.id ?? null);
+    }
   }
 
   function addUser(text: string, attachments?: ChatAttachment[]) {
@@ -157,15 +181,17 @@ export function App() {
             <span>{activeDocument?.name ?? "No document yet"}</span>
             {activeDocument ? <b aria-label={`${activeDocument.pageCount} pages`}>{activeDocument.pageCount}</b> : null}
           </div>
-          {documents.length > 1 ? (
+          {allDocuments.length > 1 ? (
             <div className="doc-switcher" role="tablist" aria-label="Open documents">
-              {documents.map((document) => (
+              {allDocuments.map((document) => (
                 <button
                   key={document.id}
                   type="button"
                   role="tab"
                   aria-selected={document.id === activeDocument?.id}
-                  className={`doc-tab ${document.id === activeDocument?.id ? "is-active" : ""}`}
+                  className={`doc-tab ${document.id === activeDocument?.id ? "is-active" : ""} ${
+                    pendingDocuments.some((pending) => pending.id === document.id) ? "is-pending" : ""
+                  }`}
                   title={document.name}
                   onClick={() => setActiveId(document.id)}
                 >
@@ -259,6 +285,19 @@ export function App() {
         </div>
 
         <form className="composer" onSubmit={handleSubmit}>
+          {pendingDocuments.length > 0 ? (
+            <div className="pending-attachments" aria-label="Pending PDFs">
+              {pendingDocuments.map((document) => (
+                <PendingAttachmentCard
+                  key={document.id}
+                  document={document}
+                  isActive={document.id === activeDocument?.id}
+                  onPreview={() => setActiveId(document.id)}
+                  onRemove={() => removePendingDocument(document.id)}
+                />
+              ))}
+            </div>
+          ) : null}
           <button
             className="composer-upload"
             type="button"
@@ -272,7 +311,7 @@ export function App() {
           <textarea
             ref={textareaRef}
             value={prompt}
-            placeholder={activeDocument ? "Ask anything about this PDF…" : "Add a PDF, then ask…"}
+            placeholder={activeDocument ? "Tell me what to do…" : "Add PDFs, then ask…"}
             aria-label="PDF command"
             rows={1}
             onChange={(event) => setPrompt(event.target.value)}
@@ -460,6 +499,31 @@ function AttachmentCard({
         <b aria-label={`${attachment.pageCount} pages`}>{attachment.pageCount}</b>
       </button>
       {attachment.type === "result" && output ? <DownloadAttachment output={output} /> : null}
+    </div>
+  );
+}
+
+function PendingAttachmentCard({
+  document,
+  isActive,
+  onPreview,
+  onRemove
+}: {
+  document: LocalPdfDocument;
+  isActive: boolean;
+  onPreview: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className={`pending-attachment ${isActive ? "is-active" : ""}`}>
+      <button className="pending-main" type="button" onClick={onPreview} title="Preview">
+        <FileText size={15} />
+        <span>{document.name}</span>
+        <b aria-label={`${document.pageCount} pages`}>{document.pageCount}</b>
+      </button>
+      <button className="pending-remove" type="button" onClick={onRemove} title="Remove" aria-label="Remove">
+        <X size={14} />
+      </button>
     </div>
   );
 }
