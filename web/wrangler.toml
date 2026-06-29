@@ -12,5 +12,6 @@ binding = "AI"
 
 [[kv_namespaces]]
 binding = "PDF_TOOLS_QUOTA"
-id = "0643a508af6b490a8e22e7d26cc4da76"
-preview_id = "ac32cc4dd8f74878b520d06cfb3cc5f9"
+# Replace these with your own Cloudflare KV namespace IDs before deploying.
+id = "YOUR_KV_NAMESPACE_ID"
+preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID"
