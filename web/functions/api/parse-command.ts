@@ -71,7 +71,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       {
         ok: false,
         code: "daily_limit_reached",
-        error: "Daily AI limit reached.",
+        error: "Daily AI usage limit reached. Try again tomorrow.",
         remaining: 0,
         limit
       },
