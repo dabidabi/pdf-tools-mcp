@@ -227,6 +227,10 @@ export function App() {
         addAssistant(`${sourceLabel(parsed.source)} · ${result.message}`);
       }
     } catch (error) {
+      if (error instanceof CommandApiError) {
+        if (error.remaining !== undefined) setRemaining(error.remaining);
+        if (error.limit !== undefined) setLimit(error.limit);
+      }
       addAssistant(errorMessage(error), undefined, "error");
     } finally {
       setIsRunning(false);
@@ -745,8 +749,11 @@ async function parseCommand(
   });
   const data = (await response.json()) as ApiParseResponse;
   if (!data.ok) {
+    if (data.code === "daily_limit_reached") {
+      throw new CommandApiError(data.error, data.code, data.remaining, data.limit);
+    }
     if (local) return { operation: local, source: "local" };
-    throw new Error(data.error);
+    throw new CommandApiError(data.error, data.code, data.remaining, data.limit);
   }
   return {
     operation: data.operation,
@@ -754,6 +761,20 @@ async function parseCommand(
     remaining: data.remaining,
     limit: data.limit
   };
+}
+
+class CommandApiError extends Error {
+  readonly code?: string;
+  readonly remaining?: number;
+  readonly limit?: number;
+
+  constructor(message: string, code?: string, remaining?: number, limit?: number) {
+    super(message);
+    this.name = "CommandApiError";
+    this.code = code;
+    this.remaining = remaining;
+    this.limit = limit;
+  }
 }
 
 async function fetchQuotaStatus(): Promise<{ remaining: number; limit: number }> {
